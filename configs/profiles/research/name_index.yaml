@@ -1,0 +1,36 @@
+# 关键词联想的名称来源（src/csagent/admin/name_index.py 读取）
+#
+# 聊天页输入框里认出一个名称后，代入快捷入口里带 XXX 的问题（docs/对话页升级方案.md §2.4）。
+# 名称从投研查询库里一次 SELECT DISTINCT 读出；库文件不存在时联想不出现，不报错。
+# 表名、列名见 skills/fund-research-db/scripts/entities.yaml。
+
+db: skills/fund-research-db/data/fund_research.sqlite3
+
+# 实体类型（与 quick_entries.yaml 分类的 entity 对应）→ 名称所在的表和列
+sources:
+  fund:
+    - {table: active_equity_funds, column: 基金简称}
+    - {table: active_bond_funds, column: 基金简称}
+    - {table: active_fixed_income_plus_funds, column: 基金简称}
+    - {table: qdii_equity_funds, column: 基金简称}
+    - {table: qdii_bond_funds, column: 基金简称}
+    - {table: convertible_bond_funds, column: 基金简称}
+    - {table: quant_equity_funds, column: 基金名称}
+  manager:
+    - {table: fund_managers_equity, column: 基金经理}
+    - {table: fund_managers_fixed_income, column: 基金经理}
+  company:
+    - {table: fund_companies, column: 基金管理人简称}
+    - {table: fund_companies, column: 基金管理人}
+  private:
+    - {table: private_funds, column: 管理人名称}
+    - {table: private_funds, column: 产品简称}
+
+# 名称一样长时谁优先：基金名里常含公司名（易方达…），先认基金
+priority: [fund, company, manager, private]
+
+# 用户直接输 6 位基金代码也能认：在 fund 的各张表里按这一列找对应名称
+codes:
+  entity: fund
+  column: 基金代码
+  digits: 6

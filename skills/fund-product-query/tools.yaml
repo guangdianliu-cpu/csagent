@@ -1,0 +1,172 @@
+# fund-product-query 的原生工具：内核按这里的 JSON Schema 注册成 function calling 工具，
+# 调用时把参数 JSON 原样写进脚本 stdin（--payload -），stdout 就是结果。
+# 成功按各工具原有格式返回（JSON，或 product_entity_query 的「查询成功…」表格文本）；
+# 失败统一成 {"ok": false, "error": {"code", "message"}}，退出码非 0，审计里记为调用失败。
+
+tools:
+  - name: product_name_lookup
+    script: scripts/query.py
+    argv: [--action, name_lookup, --payload, "-"]
+    description: >-
+      只有产品名、没有代码时的第一步：把一份名单一次解析成基金代码。返回 resolved（含 fund_code /
+      consign_flag）、可直接传给 product_lookup 的 fund_codes 数组，以及 ambiguous（份额分不清）和
+      unmatched（没搜到）。名单有几只就一次全传，不要逐个查。
+    parameters:
+      type: object
+      properties:
+        fund_names:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 50
+          description: 产品名列表，一次传完整份名单
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 30
+          description: 每个名字最多返回几个候选，默认 10
+      required: [fund_names]
+      additionalProperties: false
+
+  - name: product_lookup
+    script: scripts/query.py
+    argv: [--action, multi_lookup, --payload, "-"]
+    description: >-
+      按代码查一只或多只产品的代销、状态、限额、费率、折扣（产品卡片一次取齐）。能不能买、费率多少、
+      限额多少、申购确认、赎回到账都用它，不要拆成多次 product_entity_query。
+      超过 30 只时分批调用；名单要出 Excel 时加 out_file，再用 product_make_report 生成报表。
+    parameters:
+      type: object
+      properties:
+        fund_codes:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 30
+          description: 6 位纯数字基金代码；带 .OF 等后缀的先去掉后缀
+        custtype:
+          type: string
+          enum: ["0", "1"]
+          description: 客户类型，默认 0 机构；只有用户明确问个人 / 零售时传 1，不要双查
+        aspects:
+          type: array
+          items:
+            type: string
+            enum: [basic, limits, fees, discounts, profile, all]
+          description: >-
+            要取的方面，不传取 basic、limits、fees、discounts；传 ["all"] 再加 profile
+            （成立日、近一年收益与同类排名，每只多 2 次后端调用，简单问题别带）
+        out_file:
+          type: string
+          description: 可选，把完整结果另存到本会话出站目录的文件名（如 funds.json），返回里只给精简视图和路径
+      required: [fund_codes]
+      additionalProperties: false
+
+  - name: product_entity_query
+    script: scripts/query.py
+    argv: [--action, query, --payload, "-"]
+    description: >-
+      按实体结构化查询，是 product_lookup 覆盖不到时的降级路径：档案、业绩排名、持仓、风险指标、
+      分红、规模、开放期（仅私募/资管）、名额额度、工作日、TA、管理人等。可筛字段由后端白名单决定，
+      报错里会列出允许的字段和操作符；同一类报错出现第二次就停止试参数。
+    parameters:
+      type: object
+      properties:
+        entity:
+          type: string
+          enum:
+            - fund_products
+            - fund_archive
+            - fund_risk_index
+            - fund_holdings
+            - fund_asset_scale
+            - fund_holders
+            - fund_dividends
+            - fund_invest_style
+            - fund_performance
+            - fund_fee_rates
+            - fund_trade_limits
+            - fund_rate_discounts
+            - fund_open_periods
+            - fund_quota_info
+            - fund_quota_control
+            - current_workday
+            - workdays
+            - fund_ta_info
+            - fund_mgmt_orgs
+          description: >-
+            实体：fund_products 产品详情与状态、fund_archive 档案（投资范围/策略/经理）、fund_risk_index 风险指标、
+            fund_holdings 重仓持股/持债、fund_asset_scale 历史规模、fund_holders 持有人结构、fund_dividends 分红、
+            fund_invest_style 投资风格、fund_performance 涨跌幅与同类排名、fund_fee_rates 费率、
+            fund_trade_limits 交易限额、fund_rate_discounts 费率折扣、fund_open_periods 开放期（仅私募/资管）、
+            fund_quota_info 产品额度总控、fund_quota_control 网点专享额度、current_workday 当前工作日、
+            workdays 工作日日历、fund_ta_info TA 信息、fund_mgmt_orgs 基金管理人
+        filters:
+          type: array
+          description: 筛选条件，多个条件之间是「且」；多数实体需要 fund_code（eq）
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              op:
+                type: string
+                enum: [eq, ne, gt, gte, lt, lte, in, like]
+              value:
+                description: 比较值；in 传数组
+            required: [field, op, value]
+        order_by:
+          type: object
+          properties:
+            field:
+              type: string
+            direction:
+              type: string
+              enum: [asc, desc]
+          required: [field]
+        limit:
+          type: integer
+          minimum: 1
+          description: 返回条数，默认 20
+        select:
+          type: array
+          items:
+            type: string
+          description: 要返回的列
+      required: [entity]
+      additionalProperties: false
+
+  - name: product_siblings
+    script: scripts/query.py
+    argv: [--action, share_siblings, --payload, "-"]
+    description: >-
+      查同系列其他份额的代销、状态、费率与折扣事实。直接传 fund_code 调用即可：返回的 mode 是当前生效策略，
+      trigger_reason 说明这次查了还是没查、为什么。只陈述事实，不做换品推荐。
+    parameters:
+      type: object
+      properties:
+        fund_code:
+          type: string
+          description: 6 位基金代码
+      required: [fund_code]
+      additionalProperties: false
+
+  - name: product_make_report
+    script: scripts/make_report.py
+    argv: [--payload, "-"]
+    description: >-
+      把 product_lookup 用 out_file 落盘的结果生成核对用的 Excel 报表，存在本会话出站目录；
+      生成后再用 send_file 发给用户。
+    parameters:
+      type: object
+      properties:
+        source:
+          type: string
+          description: product_lookup 的 out_file 文件名，如 funds.json
+        target:
+          type: string
+          description: 输出的 xlsx 文件名，默认「基金核对结果.xlsx」
+      required: [source]
+      additionalProperties: false

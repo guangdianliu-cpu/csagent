@@ -1,0 +1,141 @@
+# configs/profiles/research/quick_entries.yaml — 聊天页快捷入口（默认值）
+#
+# 管理后台「快捷入口」保存后，线上值写到 data/quick_entries/research.json 并优先生效；
+# 这里只是仓库默认，后台「恢复默认」会回到这份。
+# 文案取自 Figma「利智研小程序 – Ai助手UI」（画板 3001:3716），说明见 docs/对话页升级方案.md §2。
+#
+# 快捷问题分两种：不带 XXX 的点了直接发送（行尾 ›）；带 XXX 的是可改的问题（行尾铅笔），
+# 列表里 XXX 显示成「[分类的 fill_label]」，点了填进输入框并选中它，用户直接打名称覆盖。
+# 关键词联想也只用带 XXX 的问题，把 XXX 换成识别出的名称。
+
+welcome:
+  title: Hi，我是栗子
+  subtitle: 您的专属利得投研助手
+  placeholder: 投研问题问栗子
+  # 「您可以这样问我」：每组一次显示 1 条，「换一批」轮到下一条
+  groups:
+    - label: 公募基金公司
+      questions:
+        - 西部利得是什么背景、规模多少？在管产品数量多少？
+        - 综合评分最高的几家公募公司是哪些？
+    - label: 评价投研能力
+      questions:
+        - 西部利得投研团队情况、评价体系如何？
+        - 中小型公司里，哪家评价最好？
+    - label: 私募基金公司
+      questions:
+        - 东方港湾的规模多少，在管产品，业绩如何？
+        - 量化私募里，业绩表现较好的有哪些？
+    - label: 基金经理能力
+      questions:
+        - 哪些基金经理择时做得好？
+        - 哪些基金经理的行业轮动能力最强？
+
+capability_intro: 栗子的 AI 能力，来源于利得行业数据库与投研能力评价体系
+
+categories:
+  - key: public_fund
+    label: 公募基金
+    icon: chart
+    entity: fund
+    fill_label: 基金名称
+    tags:
+      - label: QDII基金
+        keywords: [QDII 权益及另类型, QDII 债券型]
+        questions:
+          - 投资美国的基金哪些做得好？
+          - 哪只基金的贵金属持有最多？
+      - label: 量化策略
+        keywords: [量化指增, 量化选股, 主动量化]
+        questions:
+          - 科技基金有哪些，谁做得好？
+          - 哪些基金的科技占比比较高？
+          - XXX近一年的业绩如何？
+          - XXX近三年最大回撤多少？
+      - label: 转债评价
+        keywords: [转债持仓, 偏好, 业绩归因]
+        questions:
+          - 红利属性的二级债基有哪些？
+          - 做利率债的纯债基金有哪些？
+          - XXX的转债风格怎么样？
+          - XXX的换手率怎么样？
+      - label: 行业配置
+        keywords: [全量行业持仓明细（中信 + 申万双体系）]
+        questions:
+          - XXX行业配置情况？
+          - XXX的持仓行业分布情况？
+
+  - key: manager
+    label: 基金经理
+    icon: person
+    entity: manager
+    fill_label: 经理姓名
+    tags:
+      - label: 经理档案
+        keywords: [权益经理, 固收经理]
+        questions:
+          - 固收 + 基金经理里，谁做得好？
+          - XXX的能力圈覆盖哪些行业？
+      - label: 交易评价
+        keywords: [交易收益评分, 换手率]
+        questions:
+          - 哪些基金经理交易能力强？换手率高不高？
+          - XXX的交易能力怎么样？
+      - label: 业绩归因
+        keywords: [Brinson 四维归因评分]
+        questions:
+          - XXX近三年的 Brinson 四维归因是什么样？
+      - label: 主题行业
+        keywords: [持仓, 配置, 选股收益]
+        questions:
+          - 电子行业里，谁的选股收益最高？
+          - 谁擅长周期行业？
+          - 12 个主题里，谁在科技主题上做得最好？
+      - label: 轮动择时
+        keywords: [轮动能力, 择时, 配置评分]
+        questions:
+          - 哪些基金经理的行业轮动能力最强？
+          - 哪些基金经理择时做得好？
+          - 轮动能力强的经理，配置评分通常也高吗？
+
+  - key: company
+    label: 基金公司
+    icon: building
+    entity: company
+    fill_label: 公司名称
+    tags:
+      - label: 基金公司
+        keywords: [基金管理人综合评估]
+        questions:
+          - 西部利得是什么背景？
+          - 易方达管理规模多少？
+          - 西部利得在行业中规模排第几？
+          - 西部利得投研团队有多少人？
+          - 西部利得旗下有多少位基金经理？
+          - 西部利得综合评估得分是多少？
+          - 西部利得在行业中处于什么分位？
+          - 西部利得公司和易方达相比，谁的综合评估更高？
+          - 综合评分最高的几家公募公司是哪些？
+          - 中小型公司里，哪家评价最好？
+          - XXX的综合评估得分是多少？
+          - XXX管理规模多少？在行业中排第几？
+
+  - key: private_fund
+    label: 私募基金
+    icon: target
+    entity: private
+    fill_label: 产品名称
+    tags:
+      - label: 私募产品
+        keywords: [产品, 策略, 业绩]
+        questions:
+          - 东方港湾规模多少？
+          - 东方港湾有什么产品？
+          - 东方港湾的业绩如何？
+          - 东方港湾是什么策略？
+          - 已披露的私募里，哪些做量化策略？
+          - 已披露的私募里，哪些做股票多头？
+          - 东方港湾代表产品业绩怎么样？
+          - 量化私募里，业绩表现较好的有哪些？
+          - XXX的管理人背景是什么？
+          - XXX近几年的业绩表现如何？

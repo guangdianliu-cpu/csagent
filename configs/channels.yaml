@@ -1,0 +1,30 @@
+# configs/channels.yaml — 入口通道声明式启停
+
+channels:
+  http_api:
+    enabled: true
+    adapter: csagent.channels.http_api.HttpApiChannel
+    config:
+      cors_origins: ["*"]
+      max_message_length: 10000
+
+  wecom:
+    # 还需 WECOM_ENABLED=true 且配置 BotID/Secret 才会真正建连
+    enabled: true
+    adapter: csagent.channels.wecom_channel.WeComChannel
+
+  wechat:
+    # 微信群里 @我 的消息：发送机（wecom-sender）读、本服务答、发送机发。
+    # 还需在 .env 配 WECHAT_LINK_TOKEN（发送机 uplink.token 填同一个）才会启动
+    enabled: true
+    adapter: csagent.channels.wechat_channel.WeChatChannel
+    config:
+      # off：只记录收到的 @；draft：跑 Agent，回复不发到原群（配了 review_group 就发到审核群）；auto：直接回复
+      reply_mode: auto
+      review_group: ""
+      # 这么久还没答完先回一句「已收到，正在处理」（每次发送要六七秒，答得快就不发）
+      ack_after_seconds: 10
+      # 读到超过这么多分钟的旧消息不回
+      max_age_minutes: 30
+      # 每个群每分钟最多回复几条，防止和别的机器人互相 @
+      max_replies_per_minute: 3

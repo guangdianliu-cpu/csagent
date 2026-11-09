@@ -1,0 +1,36 @@
+.cursor/
+.reasonix/
+.claude/
+.vscode/
+.venv/
+**/**/.idea/
+**/**/logs/
+**/*/target
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.idea/
+.vscode/
+.claude/
+
+# 本地参考 Java 仓（不入库）
+repos/
+
+# 运行时数据（审计 / 长期画像 / 会话 uploads）
+data/
+
+# Agent 会话临时脚本与误写入的交付物
+scripts/tools/
+
+# 临时探测响应（可能含 token）
+resp
+
+# 环境变量：含企微密钥、LLM key、Oracle 口令、AGENT_SHARED_SECRET，一律不入库。
+# .env.example 是脱敏模板，要保留在库里，故用 ! 反选。
+.env
+.env.*
+!.env.example
+
+# 投研数据文件由管理页面发布到 FUND_RESEARCH_DATA_DIR，不进仓库
+docs/*.xlsx

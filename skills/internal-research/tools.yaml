@@ -1,0 +1,180 @@
+# internal-research 的原生工具：内核按这里的 JSON Schema 注册成 function calling 工具，
+# 调用时把参数 JSON 原样写进 ask.py 的 stdin（--payload -），stdout 就是结果。
+# 成功返回给模型读的文本；失败统一成 {"ok": false, "error": {"code", "message"}}，退出码非 0。
+#
+# 对端是知识库数据服务，不是另一个 Agent：理解问题、维持上下文、组织回答都在这边。
+
+tools:
+  - name: research_reports
+    script: scripts/ask.py
+    argv: [--action, reports, --payload, "-"]
+    description: >-
+      按「课题完成时间」倒序列内部研报目录（问「最新有哪些报告」「某研究员这个月发了什么」用它，
+      不要用 research_search 凑清单）。返回每行的 report_id，再用 research_record 取详情和附件。
+    parameters:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: 页码，从 1 开始
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: 每页条数，默认 10
+        keyword:
+          type: string
+          maxLength: 40
+          description: 标题字面包含匹配，不是问题；「列出最新报告」这类话不要填进来，不确定就省掉
+        filters: &filters
+          type: object
+          description: 可选筛选；带日期过滤时日期未知的资料不会返回
+          properties:
+            researcher:
+              type: string
+            research_line:
+              type: string
+            research_type:
+              type: string
+            date_from:
+              type: string
+              description: YYYY-MM-DD
+            date_to:
+              type: string
+              description: YYYY-MM-DD
+            file_types:
+              type: array
+              items:
+                type: string
+          additionalProperties: false
+      additionalProperties: false
+
+  - name: research_record
+    script: scripts/ask.py
+    argv: [--action, record, --payload, "-"]
+    description: >-
+      取一条资料的全部业务字段和附件映射（研究员、类型、每个附件的 document_id、document_version、
+      content_hash、parse_status、是否可下载）。要读正文先调它拿附件的 document_id。
+    parameters:
+      type: object
+      properties:
+        record_id:
+          type: string
+          description: research_reports 返回的 report_id；行号、标题、文件名不能代替
+      required: [record_id]
+      additionalProperties: false
+
+  - name: research_content
+    script: scripts/ask.py
+    argv: [--action, content, --payload, "-"]
+    description: >-
+      按文档顺序读一个附件的已索引正文。has_more 为 true 时原样回传 next_cursor 继续读，
+      直到读完（累计 returned_chars 应等于 total_chars），没读完不要当成全文。
+    parameters:
+      type: object
+      properties:
+        document_id:
+          type: string
+          description: research_record 附件字段里的 document_id；不要用 report_id 代替
+        expected_version:
+          type: string
+          description: 建议填 research_record 返回的 document_version
+        cursor:
+          type: string
+          description: 首次不传；续读时原样填上一页的 next_cursor
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: 每页切片数，默认 20
+        max_chars:
+          type: integer
+          minimum: 1000
+          maximum: 60000
+          description: 每页字符上限，默认 24000
+      required: [document_id]
+      additionalProperties: false
+
+  - name: research_download
+    script: scripts/ask.py
+    argv: [--action, download, --payload, "-"]
+    description: >-
+      把附件原件下载到本会话出站目录（核对图表排版、用户要原件时用）；用户明确要文件时再 send_file。
+      三个必填参数都原样抄 research_record 的附件字段。
+    parameters:
+      type: object
+      properties:
+        attachment_id:
+          type: string
+        content_hash:
+          type: string
+        file_name:
+          type: string
+          description: 附件原始文件名，含 .pdf / .xlsx 等扩展名
+        out_file:
+          type: string
+          description: 可选，落盘文件名；不传用 file_name
+      required: [attachment_id, content_hash, file_name]
+      additionalProperties: false
+
+  - name: research_search
+    script: scripts/ask.py
+    argv: [--action, search, --payload, "-"]
+    description: >-
+      在内部研报里语义检索相关片段和出处，用来定位局部观点、查「内部有没有写过 XX」，
+      不是读全文的必经步骤；要整份总结时走 research_record → research_content。
+      evidence_status=insufficient 表示内部确实没有，不是故障。
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          maxLength: 1000
+          description: 一句完整的检索问题（含主题、时间、口径）；指定报告时把标题放进书名号
+        filters: *filters
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: 返回片段数，默认 8
+      required: [query]
+      additionalProperties: false
+
+  - name: research_context
+    script: scripts/ask.py
+    argv: [--action, context, --payload, "-"]
+    description: >-
+      扩展 research_search 命中片段的前后文。只在片段被截断、或结论依赖前后文时用；
+      两个 ID 都原样抄 research_search 的输出。
+    parameters:
+      type: object
+      properties:
+        document_id:
+          type: string
+        evidence_ids:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 20
+          description: 同属这个 document_id 的 evidence_id
+        before:
+          type: integer
+          minimum: 0
+          maximum: 2
+        after:
+          type: integer
+          minimum: 0
+          maximum: 2
+      required: [document_id, evidence_ids]
+      additionalProperties: false
+
+  - name: research_capabilities
+    script: scripts/ask.py
+    argv: [--action, capabilities, --payload, "-"]
+    description: 探活：内部研究资料服务连不上时调一次确认，不要反复重试。
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false

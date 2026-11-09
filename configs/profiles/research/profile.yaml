@@ -1,0 +1,80 @@
+# configs/profiles/research/profile.yaml — 投研 Claw
+# AGENT_PROFILE=research 时生效。同目录的 agent.md 是本形态的系统提示词；
+# 实例级配置（企微机器人、端口、偏好目录）放在项目根的 .env.research。
+
+# 本形态可见的 Skill（白名单）。写了这个键，SKILL.md 里的 enabled 就不再起作用。
+skills:
+  - fund-research-db
+
+# 常驻 Skill：说明每轮直接放进系统提示词末尾，不用每个问题先 load_skill
+# （2026-10-22 审计：一天 24 个来回只在做准备，其中每问都有一次 load_skill）。
+# 只能写上面 skills 白名单里的名字。
+resident_skills:
+  - fund-research-db
+
+agent:
+  tool_packs:
+    - workspace_files
+    - artifacts
+    - html_pdf
+    - script_executor
+    - skills
+    - search
+    - reply_preference
+    - todo
+    - image_tools
+    - report
+
+tool_pack_overrides:
+  report:
+    config:
+      risk_note: >-
+        本报告基于利得基金研究数据库与公开信息整理，仅供内部研究参考，不构成投资建议或收益承诺。
+        基金过往业绩不代表未来表现，基金投资有风险。
+      footer: 利得基金 · 内部资料 注意保密
+  script_executor:
+    config:
+      timeout_seconds: 180  # 与默认一致；投研需要跨内网调知识服务与长脚本
+      # 只给 Skill 自带脚本（知识服务的地址与调用方标识）
+      env_extra:
+        - RESEARCH_AGENT_BASE_URL
+        - RESEARCH_AGENT_CALLER_ID
+        - RESEARCH_AGENT_TIMEOUT_SECONDS
+      # 模型写的二次加工脚本会 import fund-research-db 的 lib.py 读库，需要数据目录
+      env_extra_all:
+        - FUND_RESEARCH_DATA_DIR
+
+domain_text:
+  file_only_instruction: |-
+    用户只发送了文件，未附任何文字说明。请先判断文件性质再决定动作：
+    - 表格 / 数据文件 → 先读出结构（表名、字段、行数）和关键数据，再问用户想分析什么
+    - 研报 / 文档 → 先概括核心观点与数据来源，再问用户希望深入哪一部分
+    无论走哪条，都要在回复开头用一句话说明你采取的默认假设，并告知可以改成别的处理方式。
+
+  attachment_usage_hint: >-
+    本轮附件路径见上。可读 list_dir / read_file；表格分析用 excel_tool。
+    Agent 产出写入 outbound/；仅当用户明确要求发回时再 send_file，勿覆盖 inbound 原件。
+    用户后续说「这个文件」且未另指时，才用会话里的当前用户文件指针；普通提问勿强行关联旧附件。
+
+  empty_inbound_guide: >-
+    您好，我是栗子，利得的投研助手。您可以直接询问基金的分类与评分口径、按条件筛选基金池，
+    或发来持仓表、基金数据由我做拆解分析。
+
+  memory_summarizer_prompt: |-
+    你是投研会话记忆压缩器。把给定的早期对话压缩成简洁的中文摘要，规则：
+    1. 必须保留：用户诉求、基金代码（6位数字）、金额/份额/费率数字、已确认的结论、待办与约束；
+    2. 丢弃：寒暄、重复内容、过程性中间讨论、长表格与完整名单；
+    3. 用「- 」开头的要点列表输出，每条尽量短，不要输出其他说明文字；
+    4. 若提供了「已有摘要」，把新对话合并进去，输出合并后的完整摘要。
+
+  web_search_note: 结果仅作参考，涉及产品费率/净值须以产品中心工具为准。
+
+  json_preview_keys:
+    fund:
+      - 基金代码
+      - 基金简称
+      - 利得一级分类
+      - 利得二级分类
+      - 利得三级分类
+      - 综合评分
+      - 一句话基金画像

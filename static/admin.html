@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>数据管理</title>
+  <style>
+    :root {
+      --navy: #001529;
+      --accent: #1890ff;
+      --accent-hover: #096dd9;
+      --accent-soft: rgba(24, 144, 255, 0.12);
+      --bg: #f0f3f7;
+      --surface: #ffffff;
+      --text: #1f2a37;
+      --text-muted: #6b7a90;
+      --border: #e6ebf2;
+      --danger: #ff4d4f;
+      --success: #389e0d;
+      --shadow: 0 8px 24px rgba(0, 21, 41, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    header h1 { font-size: 16px; font-weight: 600; }
+    header .who { font-size: 13px; opacity: 0.85; display: flex; gap: 12px; align-items: center; }
+    main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 40px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; margin-bottom: 6px; }
+    .muted { color: var(--text-muted); font-size: 13px; }
+    button {
+      font: inherit;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 6px;
+      padding: 7px 16px;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,0.5); padding: 4px 12px; }
+    input[type=text], input[type=password] {
+      font: inherit;
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin: 4px 0 12px;
+    }
+    #login { max-width: 360px; margin: 60px auto; }
+    .error { color: var(--danger); font-size: 13px; min-height: 18px; }
+    .drop {
+      border: 1.5px dashed var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      text-align: center;
+      margin: 14px 0;
+      transition: border-color .15s, background .15s;
+    }
+    .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+    .drop .row { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    .status { margin-top: 8px; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+    .status.ok { color: var(--success); }
+    .status.fail { color: var(--danger); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .missing { color: var(--danger); }
+    .pattern { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; color: var(--text-muted); }
+    .hidden { display: none !important; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button.secondary { background: transparent; color: var(--accent); }
+    button.secondary:hover:not(:disabled) { background: var(--accent-soft); }
+    .brand-row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; margin-top: 14px; }
+    .brand-previews { display: flex; gap: 20px; }
+    .brand-previews figure { text-align: center; }
+    .brand-previews figcaption { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .brand-btn {
+      width: 52px; height: 52px; border-radius: 50%; background: var(--navy);
+      box-shadow: 0 6px 20px rgba(0,21,41,.28); overflow: hidden;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .brand-btn.active { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .brand-modes label { display: block; margin: 4px 0; cursor: pointer; }
+    .file-list { list-style: none; margin-top: 12px; text-align: left; font-size: 13px; }
+    .file-list li {
+      display: flex; gap: 10px; align-items: baseline; justify-content: space-between;
+      padding: 6px 10px; border-top: 1px solid var(--border);
+    }
+    .file-list li:first-child { border-top: none; }
+    .file-list .name { word-break: break-all; }
+    .file-list .state { flex-shrink: 0; color: var(--text-muted); white-space: pre-wrap; text-align: right; max-width: 55%; }
+    .file-list .state.ok { color: var(--success); }
+    .file-list .state.fail { color: var(--danger); }
+    .file-list .state.warn { color: #d48806; }
+    /* 快捷入口编辑 */
+    .qe-meta { margin-top: 4px; }
+    .qe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 14px; margin-top: 14px; }
+    .qe-grid label, .qe-item label { font-size: 12px; color: var(--text-muted); display: block; }
+    .qe-grid input, .qe-item input, .qe-item select, .qe-item textarea {
+      font: inherit; font-size: 13px; width: 100%; padding: 6px 8px; margin: 3px 0 8px;
+      border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text);
+    }
+    .qe-item textarea { min-height: 64px; resize: vertical; line-height: 1.6; }
+    .qe-section-title { font-size: 14px; font-weight: 600; margin: 18px 0 8px; display: flex; align-items: center; gap: 10px; }
+    .qe-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px 2px; margin-bottom: 10px; background: #fafbfc; }
+    .qe-item .qe-item { background: #fff; }
+    .qe-item-head { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .qe-item-head > label { flex: 1 1 140px; }
+    .qe-item-head > label.narrow { flex: 0 1 120px; }
+    .qe-tools { display: flex; gap: 4px; margin-bottom: 8px; }
+    .qe-tools button, button.small { padding: 3px 9px; font-size: 12px; }
+    .qe-tag { display: grid; grid-template-columns: 140px 1fr 1.6fr auto; gap: 10px; align-items: start; }
+    @media (max-width: 760px) { .qe-tag { grid-template-columns: 1fr; } }
+    .qe-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 2px; border-top: 1px solid var(--border); }
+    .qe-history { margin-top: 10px; font-size: 13px; }
+    .qe-history li { list-style: none; display: flex; gap: 12px; align-items: center; padding: 4px 0; }
+    .qe-dirty { color: #d48806; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>数据管理</h1>
+    <div class="who hidden" id="who">
+      <span id="who-name"></span>
+      <button class="ghost" id="logout">退出</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card hidden" id="login">
+      <h2>管理员登录</h2>
+      <p class="muted" style="margin-bottom:14px">账号由运维在服务端 ADMIN_ACCOUNTS 中配置。</p>
+      <form id="login-form">
+        <label>用户名<input type="text" id="username" autocomplete="username" required /></label>
+        <label>口令<input type="password" id="password" autocomplete="current-password" required /></label>
+        <div class="error" id="login-error"></div>
+        <button type="submit" id="login-btn" style="width:100%;margin-top:6px">登录</button>
+      </form>
+    </section>
+
+    <div id="app" class="hidden"></div>
+    <section class="card hidden" id="branding">
+      <h2>悬浮图标</h2>
+      <p class="muted">宿主页面右下角悬浮按钮的图标。宿主刷新页面即生效，无需改接入代码。</p>
+      <div class="brand-row">
+        <div class="brand-previews">
+          <figure><div class="brand-btn" data-preview="fill"></div><figcaption>铺满</figcaption></figure>
+          <figure><div class="brand-btn" data-preview="center"></div><figcaption>居中</figcaption></figure>
+        </div>
+        <div class="brand-controls">
+          <div class="brand-modes">
+            <label><input type="radio" name="icon-mode" value="fill" /> 铺满圆形按钮（适合做好的圆形 logo）</label>
+            <label><input type="radio" name="icon-mode" value="center" /> 深色圆底 + 图标居中（适合透明底小图标）</label>
+          </div>
+          <div class="row" style="justify-content:flex-start;margin-top:12px">
+            <input type="file" id="brand-file" accept=".png,.jpg,.jpeg,.webp,.svg" />
+            <button id="brand-upload" disabled>上传图标</button>
+            <button id="brand-reset" class="secondary">恢复默认</button>
+          </div>
+          <div class="muted" style="margin-top:6px">png / jpg / webp / svg，≤ 512 KB；建议正方形、至少 128×128。</div>
+          <div class="status" id="brand-status"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card hidden" id="quick-entries">
+      <h2>快捷入口</h2>
+      <p class="muted">聊天页的欢迎语、「您可以这样问我」、输入框上方的分类标签和抽屉里的问题。保存后用户刷新聊天页即生效。
+        问题里写 <code>XXX</code> 作占位：点了会填进输入框并选中 XXX；关键词联想也只用带 XXX 的问题。</p>
+      <div class="muted qe-meta" id="qe-meta"></div>
+      <div id="qe-editor"></div>
+      <div class="qe-actions">
+        <button id="qe-save" disabled>保存</button>
+        <button id="qe-discard" class="secondary" disabled>放弃修改</button>
+        <button id="qe-reset" class="secondary">恢复默认</button>
+        <span class="qe-dirty hidden" id="qe-dirty">有未保存的修改</span>
+      </div>
+      <div class="status" id="qe-status"></div>
+      <div class="qe-section-title">历史版本 <span class="muted" style="font-weight:400">（保存、恢复默认前的样子，留最近 5 份）</span></div>
+      <ul class="qe-history" id="qe-history"></ul>
+    </section>
+  </main>
+
+  <script>
+    const TOKEN_KEY = "csagent_admin_token";
+    const $ = (id) => document.getElementById(id);
+
+    function getToken() {
+      try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; }
+    }
+    function setToken(t) {
+      try { t ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+    }
+
+    async function api(path, opts = {}) {
+      const headers = Object.assign({}, opts.headers || {});
+      const token = getToken();
+      if (token) headers["Authorization"] = "Bearer " + token;
+      const resp = await fetch("api/admin/" + path, Object.assign({}, opts, { headers }));
+      let data = null;
+      try { data = await resp.json(); } catch (_) {}
+      if (resp.status === 401) {
+        setToken("");
+        showLogin((data && data.detail) || "登录已失效，请重新登录");
+        throw new Error("unauthorized");
+      }
+      if (!resp.ok) throw new Error((data && data.detail) || ("请求失败：" + resp.status));
+      return data;
+    }
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+    function fmtSize(n) {
+      if (n == null) return "";
+      if (n > 1048576) return (n / 1048576).toFixed(1) + " MB";
+      return Math.max(1, Math.round(n / 1024)) + " KB";
+    }
+
+    function showLogin(msg) {
+      $("app").classList.add("hidden");
+      $("branding").classList.add("hidden");
+      $("quick-entries").classList.add("hidden");
+      $("who").classList.add("hidden");
+      $("login").classList.remove("hidden");
+      $("login-error").textContent = msg || "";
+    }
+
+    async function showApp() {
+      try {
+        const me = await api("me");
+        $("who-name").textContent = me.username;
+      } catch (_) { return; }
+      $("login").classList.add("hidden");
+      $("who").classList.remove("hidden");
+      $("app").classList.remove("hidden");
+      $("branding").classList.remove("hidden");
+      $("quick-entries").classList.remove("hidden");
+      loadBrandingCard();
+      loadQuickEntries();
+      await loadDatasets();
+    }
+
+    $("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("login-btn").disabled = true;
+      $("login-error").textContent = "";
+      try {
+        const resp = await fetch("api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: $("username").value.trim(), password: $("password").value }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || "登录失败");
+        setToken(data.token);
+        $("password").value = "";
+        await showApp();
+      } catch (err) {
+        $("login-error").textContent = err.message;
+      } finally {
+        $("login-btn").disabled = false;
+      }
+    });
+
+    $("logout").addEventListener("click", () => { setToken(""); showLogin(""); });
+
+    async function loadDatasets() {
+      const app = $("app");
+      let data;
+      try { data = await api("datasets"); }
+      catch (err) {
+        if (err.message !== "unauthorized") app.innerHTML = '<div class="card"><div class="status fail">' + esc(err.message) + "</div></div>";
+        return;
+      }
+      if (!data.datasets.length) {
+        app.innerHTML = '<div class="card muted">没有可管理的数据集（configs/datasets.yaml）。</div>';
+        return;
+      }
+      app.innerHTML = "";
+      for (const ds of data.datasets) app.appendChild(renderDataset(ds));
+      for (const ds of data.datasets) {
+        for (const job of ds.running_jobs || []) resumeJob(ds.id, job);
+      }
+    }
+
+    function renderDataset(ds) {
+      const card = document.createElement("section");
+      card.className = "card";
+      const state = ds.state || {};
+      const rows = [];
+      for (const src of state.datasets || []) {
+        const n = src.tables.length;
+        src.tables.forEach((t, i) => {
+          rows.push("<tr>" +
+            (i === 0 ? '<td rowspan="' + n + '">' +
+              (src.file ? esc(src.file) + '<div class="muted">' + esc(fmtSize(src.size)) + " · " + esc(src.modified_at || "") + "</div>"
+                        : '<span class="missing">未上传</span>') +
+              '<div class="pattern">' + esc(src.pattern) + "</div></td>" : "") +
+            "<td>" + esc(t.sheet) + '<div class="pattern">' + esc(t.table) + "</div></td>" +
+            '<td class="num">' + (t.rows == null ? '<span class="missing">—</span>' : Number(t.rows).toLocaleString()) + "</td>" +
+            "<td>" + esc(t.built_at || "") + "</td></tr>");
+        });
+      }
+      card.innerHTML =
+        "<h2>" + esc(ds.title) + "</h2>" +
+        '<p class="muted">' + esc(ds.description) + "</p>" +
+        '<div class="drop" data-drop>' +
+          '<div>把文件拖到这里，或选择文件上传，可一次选多个（' + esc(ds.accept.join(", ")) + "，单个 ≤ " + ds.max_upload_mb + " MB）</div>" +
+          '<div class="muted" style="margin-top:4px">按文件名自动识别所属数据表；逐个校验发布，某个失败不影响其它；发布成功即覆盖旧文件，不保留历史版本。</div>' +
+          '<div class="row"><input type="file" data-file multiple accept="' + esc(ds.accept.join(",")) + '" />' +
+          '<button data-upload disabled>上传并发布</button></div>' +
+          '<ul class="file-list" data-list></ul>' +
+          '<div class="status" data-status></div>' +
+        "</div>" +
+        (state.error ? '<div class="status fail">' + esc(state.error) + "</div>" :
+          '<div class="muted" style="margin-bottom:8px">数据目录：' + esc(state.data_dir) +
+            (state.db_exists ? "" : ' · <span class="missing">查询库尚未生成</span>') + "</div>" +
+          '<div class="table-wrap"><table><thead><tr><th>源文件</th><th>Sheet / 表</th><th style="text-align:right">行数</th><th>生效时间</th></tr></thead><tbody>' +
+          rows.join("") + "</tbody></table></div>");
+
+      const fileInput = card.querySelector("[data-file]");
+      const btn = card.querySelector("[data-upload]");
+      const drop = card.querySelector("[data-drop]");
+      const listEl = card.querySelector("[data-list]");
+      const patterns = (state.datasets || []).map((d) => d.pattern);
+      const ctx = { ds, fileInput, btn, listEl, statusEl: card.querySelector("[data-status]"), patterns, picked: [] };
+      const onPick = (fileList) => { ctx.picked = Array.from(fileList || []); renderPicked(ctx); };
+      fileInput.addEventListener("change", () => onPick(fileInput.files));
+      drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+      drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+      drop.addEventListener("drop", (e) => {
+        e.preventDefault();
+        drop.classList.remove("over");
+        if (e.dataTransfer.files.length) onPick(e.dataTransfer.files);
+      });
+      btn.addEventListener("click", () => uploadBatch(ctx));
+      card.dataset.datasetId = ds.id;
+      return card;
+    }
+
+    function setStatus(el, text, cls) {
+      el.textContent = text;
+      el.className = "status" + (cls ? " " + cls : "");
+    }
+
+    /** 数据集文件名模式（fnmatch 风格，只用到 * 和 ?）→ 正则 */
+    function globToRegex(glob) {
+      const body = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+      return new RegExp("^" + body + "$");
+    }
+
+    /** 选中文件后先在本地核对：扩展名、大小、属于哪个数据集、同批是否撞同一个数据集。 */
+    function precheck(ctx) {
+      const { ds, patterns } = ctx;
+      const maxBytes = ds.max_upload_mb * 1024 * 1024;
+      const regs = patterns.map((p) => [p, globToRegex(p)]);
+      const byPattern = {};
+      const rows = ctx.picked.map((f) => {
+        const ext = (f.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+        if (!ds.accept.includes(ext)) return { file: f, level: "fail", text: "扩展名不支持" };
+        if (f.size > maxBytes) return { file: f, level: "fail", text: "超过 " + ds.max_upload_mb + " MB" };
+        if (!f.size) return { file: f, level: "fail", text: "空文件" };
+        const hit = regs.find(([, re]) => re.test(f.name));
+        if (regs.length && !hit) return { file: f, level: "fail", text: "文件名不属于任何数据表" };
+        const pattern = hit ? hit[0] : "";
+        if (pattern) (byPattern[pattern] = byPattern[pattern] || []).push(f.name);
+        return { file: f, level: "", text: "待上传 · " + fmtSize(f.size), pattern };
+      });
+      for (const r of rows) {
+        if (r.pattern && byPattern[r.pattern].length > 1) {
+          r.level = "fail";
+          r.text = "同批有多个文件属于同一数据表，只能保留一个";
+        }
+      }
+      return rows;
+    }
+
+    function renderPicked(ctx) {
+      const rows = precheck(ctx);
+      ctx.rows = rows;
+      ctx.listEl.innerHTML = rows.map((r, i) =>
+        '<li data-i="' + i + '"><span class="name">' + esc(r.file.name) + '</span>' +
+        '<span class="state ' + r.level + '">' + esc(r.text) + "</span></li>").join("");
+      const bad = rows.filter((r) => r.level === "fail").length;
+      ctx.btn.disabled = !rows.length || bad > 0;
+      ctx.btn.textContent = rows.length > 1 ? "上传并发布 " + rows.length + " 个文件" : "上传并发布";
+      setStatus(ctx.statusEl, bad ? "有 " + bad + " 个文件不符合要求，请移除后重新选择" : "", bad ? "fail" : "");
+    }
+
+    function setRow(ctx, i, text, level) {
+      const el = ctx.listEl.querySelector('li[data-i="' + i + '"] .state');
+      if (el) { el.textContent = text; el.className = "state" + (level ? " " + level : ""); }
+    }
+
+    function setStatus(el, text, cls) {
+      el.textContent = text;
+      el.className = "status" + (cls ? " " + cls : "");
+    }
+
+    function uploadBatch(ctx) {
+      const rows = ctx.rows || [];
+      if (!rows.length) return;
+      ctx.btn.disabled = true;
+      ctx.fileInput.disabled = true;
+      const done = () => { ctx.btn.disabled = false; ctx.fileInput.disabled = false; ctx.fileInput.value = ""; };
+      const form = new FormData();
+      for (const r of rows) form.append("files", r.file);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "api/admin/datasets/" + encodeURIComponent(ctx.ds.id) + "/upload");
+      const token = getToken();
+      if (token) xhr.setRequestHeader("Authorization", "Bearer " + token);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setStatus(ctx.statusEl, "上传中 " + Math.round(e.loaded / e.total * 100) + "%");
+      };
+      xhr.onload = async () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch (_) {}
+        if (xhr.status === 401) { setToken(""); showLogin(data.detail || "登录已失效"); return; }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          setStatus(ctx.statusEl, "上传失败，整批未发布：" + (data.detail || xhr.status), "fail");
+          done();
+          return;
+        }
+        setStatus(ctx.statusEl, "已上传，逐个校验发布中，可以离开页面，发布在后台继续");
+        const jobs = data.jobs || [data.job];
+        jobs.forEach((j, i) => setRow(ctx, i, "排队中", ""));
+        const results = await Promise.all(jobs.map((j, i) => pollJob(j.id, (text, level) => setRow(ctx, i, text, level))));
+        const ok = results.filter((r) => r === "succeeded").length;
+        const fail = results.length - ok;
+        done();
+        // 刷新表格后，把本批结果摘要写回新渲染的卡片
+        const snapshot = ctx.listEl.innerHTML;
+        await loadDatasets();
+        const card = document.querySelector('[data-dataset-id="' + CSS.escape(ctx.ds.id) + '"]');
+        if (card) {
+          card.querySelector("[data-list]").innerHTML = snapshot;
+          setStatus(card.querySelector("[data-status]"),
+            "本批完成：成功 " + ok + " 个" + (fail ? "，失败 " + fail + " 个（失败的文件线上数据未改动）" : ""),
+            fail ? "fail" : "ok");
+        }
+      };
+      xhr.onerror = () => { setStatus(ctx.statusEl, "上传失败：网络错误", "fail"); done(); };
+      setStatus(ctx.statusEl, "上传中…");
+      xhr.send(form);
+    }
+
+    /** 轮询单个发布任务直到结束；report(text, level) 更新该文件那一行。返回最终状态。 */
+    async function pollJob(jobId, report) {
+      const started = Date.now();
+      while (true) {
+        let job;
+        try { job = (await api("jobs/" + encodeURIComponent(jobId))).job; }
+        catch (err) {
+          if (err.message !== "unauthorized") report("查询状态失败：" + err.message, "fail");
+          return "failed";
+        }
+        const secs = Math.round((Date.now() - started) / 1000);
+        if (job.status === "queued") report("排队中… " + secs + "s", "");
+        else if (job.status === "running") report("校验并构建中… " + secs + "s", "warn");
+        else if (job.status === "succeeded") {
+          const r = job.result || {};
+          const tables = (r.tables || []).map((t) => t.sheet + " " + Number(t.rows).toLocaleString() + " 行").join("；");
+          const replaced = (r.replaced || []).length ? "\n替换：" + r.replaced.join("、") : "";
+          report("已发布：" + tables + replaced, "ok");
+          return "succeeded";
+        } else {
+          report("失败：" + (job.error || "未知错误"), "fail");
+          return "failed";
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+
+    /** 页面刷新后接上仍在跑的任务（只显示在状态行） */
+    function resumeJob(datasetId, job) {
+      const card = document.querySelector('[data-dataset-id="' + CSS.escape(datasetId) + '"]');
+      const el = card && card.querySelector("[data-status]");
+      if (!el) return;
+      pollJob(job.id, (text, level) => setStatus(el, job.filename + "：" + text, level === "warn" ? "" : level))
+        .then((r) => { if (r === "succeeded") loadDatasets(); });
+    }
+
+    /* ------------------------------ 悬浮图标 ------------------------------ */
+    let brandState = null;
+
+    function renderBrandPreview(state, localUrl) {
+      const url = localUrl || (state && state.icon_file ? "api/branding/icon?v=" + state.version : "");
+      for (const el of document.querySelectorAll("[data-preview]")) {
+        const mode = el.dataset.preview;
+        el.innerHTML = "";
+        el.classList.toggle("active", !!state && state.icon_mode === mode);
+        if (!url) { el.textContent = "💬"; el.style.background = ""; continue; }
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = "";
+        img.style.cssText = mode === "fill"
+          ? "width:100%;height:100%;object-fit:cover;display:block"
+          : "width:60%;height:60%;object-fit:contain;display:block";
+        el.style.background = mode === "fill" ? "transparent" : "";
+        el.appendChild(img);
+      }
+      for (const r of document.querySelectorAll('input[name="icon-mode"]')) {
+        r.checked = !!state && r.value === state.icon_mode;
+      }
+      $("brand-reset").disabled = !(state && state.icon_file);
+    }
+
+    async function loadBrandingCard() {
+      try {
+        brandState = (await api("branding")).branding;
+        renderBrandPreview(brandState);
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("brand-status"), err.message, "fail");
+      }
+    }
+
+    $("brand-file").addEventListener("change", () => {
+      const f = $("brand-file").files[0];
+      $("brand-upload").disabled = !f;
+      if (f) {
+        renderBrandPreview(brandState, URL.createObjectURL(f));
+        setStatus($("brand-status"), "预览中，点「上传图标」生效");
+      } else {
+        renderBrandPreview(brandState);
+      }
+    });
+
+    $("brand-upload").addEventListener("click", async () => {
+      const f = $("brand-file").files[0];
+      if (!f) return;
+      $("brand-upload").disabled = true;
+      const form = new FormData();
+      form.append("file", f);
+      try {
+        brandState = (await api("branding/icon", { method: "POST", body: form })).branding;
+        $("brand-file").value = "";
+        renderBrandPreview(brandState);
+        setStatus($("brand-status"), "已更新，宿主页面刷新后生效", "ok");
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("brand-status"), "上传失败：" + err.message, "fail");
+        $("brand-upload").disabled = false;
+      }
+    });
+
+    for (const r of document.querySelectorAll('input[name="icon-mode"]')) {
+      r.addEventListener("change", async () => {
+        try {
+          brandState = (await api("branding", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ icon_mode: r.value }),
+          })).branding;
+          renderBrandPreview(brandState);
+          setStatus($("brand-status"), brandState.icon_file ? "显示方式已保存，宿主页面刷新后生效" : "显示方式已保存（上传图标后生效）", "ok");
+        } catch (err) {
+          if (err.message !== "unauthorized") setStatus($("brand-status"), "保存失败：" + err.message, "fail");
+        }
+      });
+    }
+
+    $("brand-reset").addEventListener("click", async () => {
+      if (!confirm("恢复为默认的 💬 图标？")) return;
+      try {
+        brandState = (await api("branding/icon", { method: "DELETE" })).branding;
+        renderBrandPreview(brandState);
+        setStatus($("brand-status"), "已恢复默认图标", "ok");
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("brand-status"), "操作失败：" + err.message, "fail");
+      }
+    });
+
+
+    /* ------------------------------ 快捷入口 ------------------------------ */
+    // 结构与校验见 src/csagent/admin/quick_entries.py；说明见 docs/对话页升级方案.md §2.3
+    const QE_ICONS = { chart: "折线", person: "人像", building: "楼宇", target: "靶心", search: "放大镜" };
+    const QE_ENTITIES = { "": "不参与联想", fund: "公募基金", manager: "基金经理", company: "基金公司", private: "私募" };
+    const qe = { state: null, draft: null, dirty: false };
+
+    function qeBlank() {
+      return { welcome: { title: "", subtitle: "", placeholder: "", groups: [] }, capability_intro: "", categories: [] };
+    }
+    function qeLines(text) { return String(text || "").split("\n").map((x) => x.trim()).filter(Boolean); }
+    function qeWords(text) { return String(text || "").split(/[、,，;；]/).map((x) => x.trim()).filter(Boolean); }
+    function qeFmtTime(ts) { return ts ? new Date(ts * 1000).toLocaleString("zh-CN", { hour12: false }) : ""; }
+
+    function qeMarkDirty() {
+      qe.dirty = true;
+      $("qe-save").disabled = false;
+      $("qe-discard").disabled = false;
+      $("qe-dirty").classList.remove("hidden");
+    }
+
+    function qeEl(tag, attrs, children) {
+      const node = document.createElement(tag);
+      Object.entries(attrs || {}).forEach(([k, v]) => {
+        if (k === "text") node.textContent = v;
+        else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+        else node.setAttribute(k, v);
+      });
+      (children || []).forEach((c) => c && node.appendChild(c));
+      return node;
+    }
+
+    /** 文本框：改动直接写回 draft，不重绘（重绘会丢焦点）。 */
+    function qeField(label, value, onChange, opts) {
+      const o = opts || {};
+      const input = o.multiline
+        ? qeEl("textarea", { placeholder: o.placeholder || "" })
+        : qeEl("input", { type: "text", placeholder: o.placeholder || "", maxlength: o.max || 60 });
+      input.value = value || "";
+      input.addEventListener("input", () => { onChange(input.value); qeMarkDirty(); });
+      return qeEl("label", { class: o.narrow ? "narrow" : "" }, [document.createTextNode(label), input]);
+    }
+
+    function qeSelect(label, value, options, onChange) {
+      const sel = qeEl("select");
+      Object.entries(options).forEach(([v, text]) => {
+        const opt = qeEl("option", { value: v, text });
+        if (v === value) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener("change", () => { onChange(sel.value); qeMarkDirty(); });
+      return qeEl("label", { class: "narrow" }, [document.createTextNode(label), sel]);
+    }
+
+    /** 上移 / 下移 / 删除：改结构后整体重绘。 */
+    function qeTools(list, i, what) {
+      const move = (d) => () => {
+        const j = i + d;
+        if (j < 0 || j >= list.length) return;
+        [list[i], list[j]] = [list[j], list[i]];
+        qeMarkDirty();
+        qeRender();
+      };
+      return qeEl("div", { class: "qe-tools" }, [
+        qeEl("button", { class: "secondary", type: "button", text: "↑", title: "上移", onclick: move(-1) }),
+        qeEl("button", { class: "secondary", type: "button", text: "↓", title: "下移", onclick: move(1) }),
+        qeEl("button", { class: "secondary", type: "button", text: "删除", onclick: () => {
+          if (!confirm("删除这个" + what + "？")) return;
+          list.splice(i, 1);
+          qeMarkDirty();
+          qeRender();
+        } }),
+      ]);
+    }
+
+    function qeAddButton(text, onClick) {
+      return qeEl("button", { class: "secondary small", type: "button", text: "+ " + text, onclick: () => {
+        onClick();
+        qeMarkDirty();
+        qeRender();
+      } });
+    }
+
+    function qeRender() {
+      const d = qe.draft;
+      const root = $("qe-editor");
+      root.replaceChildren();
+
+      root.appendChild(qeEl("div", { class: "qe-grid" }, [
+        qeField("欢迎标题", d.welcome.title, (v) => (d.welcome.title = v), { max: 20, placeholder: "Hi，我是栗子" }),
+        qeField("副标题", d.welcome.subtitle, (v) => (d.welcome.subtitle = v), { max: 30 }),
+        qeField("输入框提示", d.welcome.placeholder, (v) => (d.welcome.placeholder = v), { max: 30 }),
+        qeField("「能查什么」说明", d.capability_intro, (v) => (d.capability_intro = v), { max: 60 }),
+      ]));
+
+      // 您可以这样问我
+      root.appendChild(qeEl("div", { class: "qe-section-title" }, [
+        document.createTextNode("您可以这样问我（≤ 6 组，每组一次显示 1 条，「换一批」轮换）"),
+        qeAddButton("加一组", () => d.welcome.groups.push({ label: "", questions: [] })),
+      ]));
+      d.welcome.groups.forEach((g, i) => {
+        root.appendChild(qeEl("div", { class: "qe-item" }, [
+          qeEl("div", { class: "qe-item-head" }, [
+            qeField("组名", g.label, (v) => (g.label = v), { max: 12, narrow: true }),
+            qeField("问题（一行一个）", g.questions.join("\n"), (v) => (g.questions = qeLines(v)), { multiline: true }),
+            qeTools(d.welcome.groups, i, "组"),
+          ]),
+        ]));
+      });
+
+      // 分类
+      root.appendChild(qeEl("div", { class: "qe-section-title" }, [
+        document.createTextNode("分类标签（≤ 8 个，显示在输入框上方；「能查什么」固定在最前）"),
+        qeAddButton("加一个分类", () => d.categories.push({ key: "cat_" + (d.categories.length + 1), label: "", icon: "chart", entity: "", tags: [{ label: "", keywords: [], questions: [] }] })),
+      ]));
+      d.categories.forEach((c, i) => {
+        const tags = qeEl("div");
+        c.tags.forEach((t, j) => {
+          tags.appendChild(qeEl("div", { class: "qe-item" }, [
+            qeEl("div", { class: "qe-tag" }, [
+              qeField("能力胶囊", t.label, (v) => (t.label = v), { max: 12 }),
+              qeField("关键词（用、分隔）", t.keywords.join("、"), (v) => (t.keywords = qeWords(v)), { max: 200 }),
+              qeField("问题（一行一个，≤ 20 条）", t.questions.join("\n"), (v) => (t.questions = qeLines(v)), { multiline: true }),
+              qeTools(c.tags, j, "胶囊"),
+            ]),
+          ]));
+        });
+        root.appendChild(qeEl("div", { class: "qe-item" }, [
+          qeEl("div", { class: "qe-item-head" }, [
+            qeField("分类名", c.label, (v) => (c.label = v), { max: 8, narrow: true }),
+            qeField("key（小写字母）", c.key, (v) => (c.key = v.trim()), { max: 32, narrow: true }),
+            qeSelect("图标", c.icon, QE_ICONS, (v) => (c.icon = v)),
+            qeSelect("关键词联想", c.entity, QE_ENTITIES, (v) => (c.entity = v)),
+            qeField("占位提示（如 基金名称）", c.fill_label || "", (v) => (c.fill_label = v.trim()), { max: 8, narrow: true }),
+            qeTools(d.categories, i, "分类"),
+          ]),
+          tags,
+          qeEl("div", { style: "margin-bottom:10px" }, [qeAddButton("加一个能力胶囊", () => c.tags.push({ label: "", keywords: [], questions: [] }))]),
+        ]));
+      });
+    }
+
+    function qeApplyState(state, message) {
+      qe.state = state;
+      qe.draft = JSON.parse(JSON.stringify(state.entries || qeBlank()));
+      qe.dirty = false;
+      $("qe-save").disabled = true;
+      $("qe-discard").disabled = true;
+      $("qe-dirty").classList.add("hidden");
+      $("qe-reset").disabled = state.source !== "online";
+      const src = { online: "线上（管理后台保存）", default: "仓库默认", none: "未配置（聊天页不显示快捷入口）" }[state.source];
+      $("qe-meta").textContent = "当前生效：" + src +
+        (state.source === "online" ? "，" + state.updated_by + " 于 " + qeFmtTime(state.updated_at) + " 保存" : "");
+      const hist = $("qe-history");
+      hist.replaceChildren();
+      if (!state.history.length) hist.appendChild(qeEl("li", { class: "muted", text: "暂无" }));
+      state.history.forEach((h) => {
+        hist.appendChild(qeEl("li", {}, [
+          qeEl("span", { text: qeFmtTime(h.updated_at) + "　" + (h.updated_by || "") }),
+          qeEl("button", { class: "secondary small", type: "button", text: "回退到这一版", onclick: () => qeRollback(h.version) }),
+        ]));
+      });
+      qeRender();
+      if (message) setStatus($("qe-status"), message, "ok");
+    }
+
+    async function loadQuickEntries() {
+      try {
+        qeApplyState(await api("quick-entries"));
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("qe-status"), err.message, "fail");
+      }
+    }
+
+    async function qeRollback(version) {
+      if (qe.dirty && !confirm("有未保存的修改，回退会丢掉它们。继续？")) return;
+      try {
+        qeApplyState(await api("quick-entries/rollback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version }),
+        }), "已回退，聊天页刷新后生效");
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("qe-status"), "回退失败：" + err.message, "fail");
+      }
+    }
+
+    $("qe-save").addEventListener("click", async () => {
+      $("qe-save").disabled = true;
+      try {
+        qeApplyState(await api("quick-entries", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base_version: qe.state.version, entries: qe.draft }),
+        }), "已保存，聊天页刷新后生效");
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("qe-status"), "保存失败：" + err.message, "fail");
+        $("qe-save").disabled = false;
+      }
+    });
+
+    $("qe-discard").addEventListener("click", () => {
+      if (confirm("放弃未保存的修改？")) qeApplyState(qe.state);
+    });
+
+    $("qe-reset").addEventListener("click", async () => {
+      if (!confirm("删掉后台保存的内容，恢复为仓库默认？（当前内容会留在历史版本里）")) return;
+      try {
+        qeApplyState(await api("quick-entries", { method: "DELETE" }), "已恢复默认");
+      } catch (err) {
+        if (err.message !== "unauthorized") setStatus($("qe-status"), "操作失败：" + err.message, "fail");
+      }
+    });
+
+    window.addEventListener("beforeunload", (e) => {
+      if (qe.dirty) { e.preventDefault(); e.returnValue = ""; }
+    });
+
+    if (getToken()) showApp(); else {
+      // 本地开发（鉴权关闭）时 me 直接可用
+      fetch("api/admin/me").then((r) => r.ok ? showApp() : showLogin("")).catch(() => showLogin(""));
+    }
+  </script>
+</body>
+</html>

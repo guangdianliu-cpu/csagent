@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 对齐 fdps application-dubbo-consumer.xml：仅产品中心只读 Facade -->
+<!-- 由 DubboConsumerConfiguration @ImportResource 加载 -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://dubbo.apache.org/schema/dubbo
+        http://dubbo.apache.org/schema/dubbo/dubbo.xsd">
+
+  <dubbo:application name="product-pc-bridge" />
+  <dubbo:registry address="${zookeeper.url}" check="false"/>
+  <dubbo:consumer check="false" timeout="20000" retries="0"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundBaseInfoFacade"
+                   interface="com.leadbank.productcenter.facade.product.FundBaseInfoFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundTrnFacade"
+                   interface="com.leadbank.productcenter.facade.product.FundTrnFacade"
+                   check="false" retries="0" timeout="50000"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="productQuotaFacade"
+                   interface="com.leadbank.productcenter.facade.quota.ProductQuotaFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="taInfoFacade"
+                   interface="com.leadbank.productcenter.facade.param.TaInfoFacade"
+                   check="false" retries="0" timeout="50000"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundManagerFacade"
+                   interface="com.leadbank.productcenter.facade.product.FundManagerFacade"
+                   check="false" retries="0" timeout="50000"/>
+
+  <!-- 管理人名称/代码模糊：queryFundManagerList -->
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="productManageFacade"
+                   interface="com.leadbank.productcenter.facade.product.ProductManageFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundStatisticsFacade"
+                   interface="com.leadbank.productcenter.facade.cms.FundStatisticsFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <!-- fims detail.app 主数据源 / 档案 / 持仓 -->
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundInfoFacade"
+                   interface="com.leadbank.productcenter.facade.cms.FundInfoFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <!-- 主基金 → 从基金份额列表：queryFundByMainFund；清算日 querySettlementDate -->
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="onlineFacade"
+                   interface="com.leadbank.productcenter.facade.cms.OnlineFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <!-- 对齐 fims detail HEADER：Retail confirmDays / subDays → 申购确认日 -->
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundRetailFacade"
+                   interface="com.leadbank.productcenter.facade.retail.FundRetailFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <!-- 规模 / 持有人 / 风险指标 -->
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="fundInfoExtendFacade"
+                   interface="com.leadbank.productcenter.facade.product.FundInfoExtendFacade"
+                   check="false" retries="0" timeout="20000"/>
+
+  <dubbo:reference version="${dubbo.version}" group="${dubbo.env}"
+                   id="workdayFacade"
+                   interface="com.leadbank.productcenter.facade.param.WorkdayFacade"
+                   check="false" retries="0" timeout="20000"/>
+</beans>

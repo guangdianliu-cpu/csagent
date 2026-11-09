@@ -1,0 +1,83 @@
+# configs/base.yaml — 行为/调优参数的唯一定义点
+# 设计决策详见 docs/config-decisions.md
+# 优先级：环境变量 / .env > 本文件
+
+llm:
+  timeout_seconds: 180                # 单次请求读超时；带思考的非流式长输出 60 秒不够
+  max_retries: 2                      # 总尝试次数（含首次），不是「额外重试次数」
+  max_tokens: 131072                  # 单次输出上限（含思考）；换 128K 窗口模型时要调低；.env 的 LLM_MAX_TOKENS 优先
+  # log_bodies_dir: data/llm_bodies   # log_bodies 开关跟随 LOG_LEVEL
+
+chat:
+  max_history_messages: 200           # 短期记忆条数上限
+  show_thinking_process: false        # 界面展示思考过程
+
+  # —— 会话历史注入 ——
+  history_window: 24                  # 最近原文条数
+  history_summary_enabled: true       # 窗口外 LLM 滚动摘要
+  history_summary_max_chars: 16000    # 摘要字符硬顶
+  summary_max_tokens: 4000            # 摘要 Token 预算
+  recent_user_max_tokens: 2000        # 窗口内用户消息上限
+  recent_assistant_max_tokens: 2000   # 窗口内助手消息上限（长任务的上一轮结论要能带过来）
+  compact_threshold: 0.80             # 上下文压缩水位线
+  model_context_limit: 0              # 0=按模型名自动推断（受 model_context_cap 封顶）
+  model_context_cap: 200000           # 有效窗口：自动推断值超过它按它算；0=不封顶
+  response_reserve_ratio: 0.10        # 预留给模型生成的窗口比例
+  tool_history_tokens: 1500           # 跨轮工具调用摘要注入预算（约 35 条）
+
+  # —— 记忆后端 ——
+  memory_backend: sqlite              # sqlite | memory | redis
+  memory_db_path: data/csagent.db     # 仅 sqlite 后端
+  episode_gap_hours: 12               # 静默多久算新 episode
+  recall_window_days: 180             # 跨段召回时间窗（天）
+  context_token_high_ratio: 0.50      # 上下文占比告警阈值；0=关闭
+  tool_result_retention_days: 0       # 外置文件保留期；0=不删
+  l1_max_tokens: 200                  # L1 单轮摘要预算
+  l2_merge_every: 8                   # 每 N 条 L1 合并一份 Checkpoint
+  max_message_chars: 8000             # 写入记忆时单条字符上限
+  max_concurrent_requests: 8          # 并发请求上限；<=0 不限流
+  #redis_url:                         # 仅 redis 后端
+  #memory_ttl_seconds: 86400          # 仅 redis 后端
+
+transcript:
+  enabled: true                       # 对外暴露历史接口
+  retention_days: 0                   # 0=永不删除
+  max_return: 100                     # 单次回填前端条数
+
+react:
+  max_parallel_tool_calls: 5          # 同轮工具并行数；1=顺序
+  max_rounds: 48                      # ReAct 最大轮数
+  max_tool_calls: 80                  # ReAct 最大工具调用次数（可并行，需高于轮数）
+  max_tool_result_chars: 30000        # 单条结果上限（超出外置）
+  overall_timeout_seconds: 1500       # 软截止：到点不再开新一轮，用已有结果收口
+  tool_timeout_seconds: 240           # 单工具兜底超时（高于脚本自身 180 秒超时）
+
+attachment:
+  image_mode: multimodal              # multimodal | ocr | stub
+
+workspace:
+  cleanup_ttl_days: 0                 # 0=禁用自动清理
+  cleanup_on_startup: true            # 启动时执行一次清理
+  # 读类工具（read_file / list_dir / send_file / grep / glob）额外放行的项目路径前缀。
+  # 默认空：只能访问本会话目录、共享脚本与已启用 Skill；源码、配置、文档、审计日志都不可见。
+  # 仅调试部署按需打开，例如 [docs/, configs/]；也可在 .env.<形态> 用
+  # WORKSPACE_READ_ESCAPE_PREFIXES=docs/,configs/ 按实例覆盖。不要放 data/ 下的任何目录。
+  read_escape_prefixes: []
+
+audit:
+  enabled: true                       # 会话审计留痕
+  dir: data/audit
+
+logging:
+  error_log_enabled: true             # ERROR 日志落盘
+  error_log_dir: data/logs
+  error_log_max_bytes: 10485760       # 10 MB
+  error_log_backup_count: 5
+
+# Graylog GELF（生产/测试开启；本地默认 false）
+# 与 product-pc-bridge application.yml 一致。只推 ERROR；连不上则丢弃，不挡对话。
+graylog:
+  enabled: true
+  host: 10.33.30.160
+  port: 12201
+  facility: ld308_csagent

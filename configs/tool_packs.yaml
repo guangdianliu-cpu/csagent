@@ -1,0 +1,221 @@
+# configs/tool_packs.yaml — 通用工具包（无客服/产品/账户/交易网关）
+
+tool_packs:
+
+  # --- 写脚本 / 跑脚本 / Shell ---
+  script_executor:
+    pack_class: csagent.tools.packs.script_pack.ScriptToolPack
+    description: 写脚本 / 跑脚本 / 执行 shell
+    config:
+      scripts_dir: scripts/tools/
+      work_dir: .
+      session_scoped: true
+      allowed_extensions: [.sh, .py]
+      timeout_seconds: 180
+      sandbox: false
+      max_output_chars: 30000
+      shell_enabled: false
+      default_shell: powershell
+      # 子进程默认继承进程环境，但名字像密钥的变量（KEY/SECRET/TOKEN/PASSWORD…）会被剥掉。
+      # 脚本要用的变量在下面两个列表按名声明，值留在 .env（见 resolve_env_extra）：
+      #   env_extra     只注入给 Skill 自带脚本（<skill:name>/scripts/...），凭证只能放这里
+      #   env_extra_all 所有脚本都可见（含模型现写的会话脚本），只放路径、开关这类非敏感值
+      env_extra:
+        - PRODUCT_PC_BRIDGE_BASE_URL
+        - PRODUCT_PC_BRIDGE_TOKEN
+        - PRODUCT_PC_BRIDGE_TIMEOUT_SECONDS
+        - PRODUCT_SHARE_SIBLING_MODE
+        - FUND_RESEARCH_DATA_DIR
+
+    tools:
+      - name: write_script
+        description: 写入脚本到 scripts/tools/{session}/；参数 path/content
+      - name: run_script
+        description: 执行脚本；action=list；参数 script/args
+      # run_shell 已随 shell_enabled: false 下线，工具声明一并注释，
+      # 免得模型在工具列表里看见它、反复尝试、白耗轮次。
+      # - name: run_shell
+      #   description: 执行 shell 命令；参数 command，可选 shell=powershell|cmd|bash|sh
+
+  # --- 工作区文件 ---
+  workspace_files:
+    pack_class: csagent.tools.packs.workspace_files_pack.WorkspaceFilesToolPack
+    description: 工作区文件读写与出站发送
+    config:
+      root_dir: .
+      session_scoped: true
+      allow_absolute: false
+      max_read_chars: 100000
+      max_write_chars: 200000
+      max_list_entries: 200
+      # 投研与产品咨询默认 false。
+      send_enabled: true
+    tools:
+      - name: list_dir
+        description: 列出目录；默认会话目录；参数 path / max_entries
+      - name: read_file
+        description: 读取工作区文本文件。参数 path 必填；大文件必须用 offset(1-based 起始行)+limit(行数) 分段读，建议 limit=600，下一页 offset=上一页终点+1。超长结果会被外置为 artifact，可用 read_artifact 按页取回，不要一次不带 limit 读整文件。默认相对当前会话 data/uploads/{session}/，也可读 outbound/、本会话 scripts/tools/ 与已启用 Skill 的 skills/<name>/。
+      - name: write_file
+        description: 写入/覆盖文本；参数 path/content
+      - name: edit_file
+        description: 精确替换编辑；参数 path/old_string/new_string，可选 replace_all
+      - name: send_file
+        description: 将会话文件发回用户；参数 path
+
+  # --- 外置大结果取回（M3.1）---
+  artifacts:
+    pack_class: csagent.tools.packs.artifact_pack.ArtifactToolPack
+    description: 分页取回已外置的大工具结果
+    tools:
+      - name: read_artifact
+        description: 读取本会话已外置的大工具结果。参数 artifact_id 必填；大结果必须用 offset(1-based)+limit 分页，建议 limit=200。记录型结果可传 columns 只取需要的列。需要过滤/聚合/统计时不要翻页，直接 run_script 读占位里给出的文件路径。
+
+  # --- Excel ---
+  excel_tools:
+    pack_class: csagent.tools.packs.excel_pack.ExcelToolPack
+    description: Excel list_sheets / read / write / filter / create
+    config:
+      root_dir: .
+      session_scoped: true
+      allow_absolute: false
+      max_rows: 100
+    tools:
+      - name: excel_tool
+        description: Excel 操作；action=list_sheets|read|write|filter|create
+
+  # --- HTML → PDF ---
+  html_pdf:
+    pack_class: csagent.tools.packs.pdf_pack.HtmlPdfToolPack
+    description: 把工作区 HTML 渲染成 PDF
+    config:
+      root_dir: .
+      session_scoped: true
+      allow_absolute: false
+      send_enabled: true
+      engine: auto
+      timeout_seconds: 60
+    tools:
+      - name: html_to_pdf
+        description: 将 HTML 转为 PDF；参数 html_path 必填，pdf_path 可选
+
+  # --- Web 搜索 ---
+  web_search:
+    pack_class: csagent.tools.packs.web_search_pack.WebSearchToolPack
+    description: Web 搜索工具包
+    config:
+      search_engine: duckduckgo
+      api_key_env: WEB_SEARCH_API_KEY
+      max_results: 5
+      timeout_seconds: 15
+    tools:
+      - name: web_search
+        description: 搜索互联网获取最新公开信息
+
+  # --- HTTP ---
+  http_request:
+    pack_class: csagent.tools.packs.http_request_pack.HttpRequestToolPack
+    description: 通用 HTTP 请求工具包
+    config:
+      allowed_domains: []
+      timeout_seconds: 30
+      max_response_chars: 8000
+      follow_redirects: true
+    tools:
+      - name: http_call
+        description: 发送 HTTP 请求（参数 url/method/headers/query/json_body/body）
+
+  # --- MCP ---
+  mcp:
+    pack_class: csagent.tools.packs.mcp_pack.McpToolPack
+    description: MCP 协议工具包
+    config:
+      max_result_chars: 8000
+      register_discovered_tools: true
+      servers: []
+
+  # --- Skill 系统 ---
+  skills:
+    pack_class: csagent.tools.packs.skill_pack.SkillToolPack
+    description: Skill 索引与加载
+    config:
+      roots:
+        - skills
+    tools:
+      - name: list_skills
+        description: 列出可用 Skill 及其用途；可选 query 过滤
+      - name: load_skill
+        description: 加载指定 Skill 的完整操作说明
+
+  # --- 搜索工具（grep + glob）---
+  search:
+    pack_class: csagent.tools.packs.search_pack.SearchToolPack
+    description: 代码/文本搜索工具包
+    config:
+      root_dir: .
+      max_results: 100
+      max_output_lines: 200
+    tools:
+      - name: grep
+        description: 在文件中搜索文本模式（优先 ripgrep，回退 Python re）
+      - name: glob
+        description: 按通配符匹配文件路径
+
+  # --- TODO 管理 ---
+  # --- 报告卡片（docs/对话页升级方案.md §3）---
+  report:
+    pack_class: csagent.tools.packs.report_pack.ReportToolPack
+    description: 把长分析整理成报告卡片，按会话保存版本
+    config:
+      # 卡片上「导出 PDF」用的渲染引擎，取值同 html_pdf
+      export:
+        engine: auto
+        timeout_seconds: 60
+      # 报告末尾的通用风险提示、PDF 页脚；行业措辞在形态的 tool_pack_overrides 里覆盖
+      risk_note: 本报告仅供参考，不构成任何建议。
+      footer: ""
+    tools:
+      - name: publish_report
+        description: 新建报告卡片；参数 title/summary/blocks/sources
+      - name: update_report
+        description: 在已有报告上出新版本；report_id 不填为最近一份
+      - name: read_report
+        description: 读取报告完整内容
+
+  todo:
+    pack_class: csagent.tools.packs.todo_pack.TodoToolPack
+    description: 会话级 TODO 管理
+    config:
+      persist_dir: data/todos
+    tools:
+      - name: todo_write
+        description: 创建/更新待办事项列表
+      - name: todo_read
+        description: 查看当前会话的待办事项列表
+
+  # --- 回复风格偏好 ---
+  # 存储目录来自 settings.reply_preference_dir（.env 的 REPLY_PREFERENCE_DIR），不在此重复声明。
+  reply_preference:
+    pack_class: csagent.tools.packs.reply_preference_pack.ReplyPreferenceToolPack
+    description: 记住用户回复风格偏好（简短/详细/自定义），按会话归属存储
+    tools:
+      - name: set_reply_style
+        description: 记住用户对回复风格/格式的偏好；仅当用户明确表达此类诉求时调用。只存当前一份，新值覆盖旧值、normal 直接清除，均不可撤销且无历史版本；用户要求回滚/恢复上一版偏好时直接说明做不到并请其重新提供内容
+
+  # --- 通用多模态图片识别与视觉分析 ---
+  image_tools:
+    pack_class: csagent.tools.packs.image_pack.ImageToolPack
+    description: 工作区图片多模态视觉理解、信息提取与排版分析
+    config:
+      root_dir: .
+      session_scoped: true
+      allow_absolute: false
+      max_image_bytes: 10485760
+      # 默认视觉模型；留空则跟随环境变量 LLM_VISION_MODEL 或主模型 LLM_MODEL
+      default_model: ""
+    tools:
+      - name: view_image
+        description: 读取工作区或会话中的图片文件（PNG/JPG/JPEG/WEBP/BMP/GIF 等），由多模态视觉模型进行理解、信息提取、图表分析或排版质检。类似文本文件的 read_file，作为查看图像的通用工具使用。参数 path 必填（支持会话目录、inbound/ 附件、outbound/ 产物等）；prompt 可选（具体分析要求，如提取文字数据、走势分析、版面检查等）。
+
+
+
+

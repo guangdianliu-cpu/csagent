@@ -1,0 +1,99 @@
+# configs/policy.yaml — 工具风险与放行规则。
+#
+# 第一条命中的规则生效；都不命中则放行。改完要重启进程。
+# 名字事先不知道的工具（MCP 远端工具注册成 mcp_<服务>_<工具>）：
+#   规则里用 tool_prefix: 前缀 匹配；tool_risks 里用 "前缀*": 等级 归类（精确名优先）。
+# 启动时会把没归类的工具打成 ERROR 日志（tool_policy_unclassified_tools）。
+# 确认卡片只在本进程内存里，10 分钟有效，重启即失效。
+#
+# run_script / write_script 标成 code_exec / session_write，但默认放行：
+# 产品咨询和投研的正常路径就是写脚本再跑。要收紧时在 rules 里加一条即可。
+
+policy:
+  version: "1"
+  default_risk: read
+  # 二次确认（确认卡片）总开关。暂时关闭，保持线上体验不变：下面 effect: challenge 的规则
+  # 一律按放行处理（deny 不受影响），审计里该次调用仍记下命中的规则 id。要开启改成 true。
+  challenge_enabled: false
+
+  tool_risks:
+    list_skills: read
+    load_skill: read
+    list_dir: read
+    read_file: read
+    read_artifact: read
+    grep: read
+    glob: read
+    todo_read: read
+    read_report: read
+    view_image: read
+    mcp_list_tools: read
+    # Skill 在 tools.yaml 里声明的查询工具（投研 fund-research-db、产品 fund-product-query、
+    # 内部研报 internal-research）
+    "fund_db_*": read
+    "product_*": read
+    "research_*": read
+
+    todo_write: session_write
+    write_file: session_write
+    edit_file: session_write
+    write_script: session_write
+    # 会往本会话出站目录落文件（out_file / xlsx 报表）
+    product_lookup: session_write
+    product_make_report: session_write
+    research_download: session_write
+    excel_tool: session_write
+    html_to_pdf: session_write
+    # 报告卡片落在本会话出站目录，只发给提问的人自己（群里的降级在 M10）
+    publish_report: session_write
+    update_report: session_write
+
+    run_script: code_exec
+    run_shell: code_exec
+    # MCP 服务发现的远端工具注册成 mcp_<服务>_<工具>，名字事先不知道，按前缀归类
+    "mcp_*": external_effect
+
+    send_file: external_effect
+    web_search: external_effect
+    http_call: external_effect
+    mcp_call_tool: external_effect
+    set_reply_style: external_effect
+
+  rules:
+    - id: group-send-file
+      effect: challenge
+      reason: 文件会发到群里，群成员都能看到
+      when:
+        tool: send_file
+        chat_type: group
+
+    - id: set-reply-style
+      effect: challenge
+      reason: 回复偏好会覆盖当前设置，且没有历史版本可回滚
+      when:
+        tool: set_reply_style
+
+    - id: http-call
+      effect: challenge
+      reason: 将向外部地址发起 HTTP 请求
+      when:
+        tool: http_call
+
+    # 列远端工具只是查询，照常放行；必须排在下一条前面
+    - id: mcp-list-tools
+      effect: allow
+      when:
+        tool: mcp_list_tools
+
+    # 通用的 mcp_call_tool 与自动注册的 mcp_<服务>_<工具> 都要确认
+    - id: mcp-call
+      effect: challenge
+      reason: 将调用外部 MCP 工具
+      when:
+        tool_prefix: mcp_
+
+    - id: run-shell
+      effect: challenge
+      reason: 将在服务器上执行 shell 命令
+      when:
+        tool: run_shell

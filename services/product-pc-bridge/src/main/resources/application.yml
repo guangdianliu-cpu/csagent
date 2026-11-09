@@ -1,0 +1,48 @@
+server:
+  port: 18080
+
+spring:
+  application:
+    name: product-pc-bridge
+
+bridge:
+  token: ""
+  sys-id: CSAGENT
+  api-version: "1.0"
+  # 额度查询必填网点号；对齐 fims CommConstant.NET_NO
+  default-net-no: "0001"
+  # 个人折扣查询默认网点号
+  personal-net-no: "9998"
+  # Agent/大模型经 HTTP 调 bridge 的入参/出参/耗时审计（AOP → Logback 滚动 JSONL）
+  audit:
+    enabled: true
+    max-body-chars: 4000
+
+# 供 dubbo-consumer.xml 占位符使用（与 fdps 同名）
+zookeeper:
+  url: ${ZOOKEEPER_URL:zookeeper://10.32.30.53:2181?backup=10.32.30.92:2181,10.32.30.102:2181}
+dubbo:
+  env: ${DUBBO_ENV:prod}
+  version: ${DUBBO_VERSION:1.0.0}
+  application:
+    name: product-pc-bridge
+    qos-enable: false
+  consumer:
+    check: false
+    timeout: 20000
+  registry:
+    address: ${zookeeper.url}
+
+logging:
+  file:
+    path: logs
+  level:
+    root: INFO
+    com.leadbank.csagent.pcbridge: INFO
+
+# Graylog GELF（生产/测试开启；本地默认 false）
+graylog:
+  enabled: true
+  host: 10.33.30.160
+  port: 12201
+  facility: ld308_csagent

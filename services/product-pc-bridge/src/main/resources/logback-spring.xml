@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <!-- Spring Boot 注入；可用 logging.file.path / LOGGING_FILE_PATH 覆盖 -->
+  <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="logs"/>
+  <springProperty scope="context" name="GRAYLOG_ENABLED" source="graylog.enabled" defaultValue="false"/>
+  <springProperty scope="context" name="GRAYLOG_HOST" source="graylog.host" defaultValue="10.33.30.160"/>
+  <springProperty scope="context" name="GRAYLOG_PORT" source="graylog.port" defaultValue="12201"/>
+  <springProperty scope="context" name="GRAYLOG_FACILITY" source="graylog.facility"
+                  defaultValue="LD297_PRODUCT_PC_BRIDGE"/>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <!-- Graylog GELF TCP：仅 ERROR，异步发送，对齐产品中心 core -->
+  <appender name="gelf" class="biz.paluch.logging.gelf.logback.GelfLogbackAppender">
+    <!-- TCP 连接/重试参数写在 URI 查询串，logstash-gelf 不支持独立 reconnectDelay/connectTimeout 元素 -->
+    <graylogHost>tcp:${GRAYLOG_HOST}?connectionTimeout=5000ms&amp;deliveryAttempts=5</graylogHost>
+    <graylogPort>${GRAYLOG_PORT}</graylogPort>
+    <version>1.1</version>
+    <facility>${GRAYLOG_FACILITY}</facility>
+    <extractStackTrace>true</extractStackTrace>
+    <filterStackTrace>true</filterStackTrace>
+    <mdcFields>traceId,reqId,httplogid</mdcFields>
+    <dynamicMdcFields>mdc.*,(mdc|MDC)fields</dynamicMdcFields>
+    <maximumMessageSize>65536</maximumMessageSize>
+  </appender>
+
+  <appender name="asyncGelf" class="ch.qos.logback.classic.AsyncAppender">
+    <queueSize>20000</queueSize>
+    <discardingThreshold>10</discardingThreshold>
+    <includeCallerData>false</includeCallerData>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>ERROR</level>
+    </filter>
+    <appender-ref ref="gelf"/>
+  </appender>
+
+  <!-- 接口审计：纯 JSON 行；按天 + 体积滚动，历史自动 .gz 压缩 -->
+  <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_PATH}/bridge-api-audit.jsonl</file>
+    <encoder>
+      <pattern>%msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_PATH}/bridge-api-audit.%d{yyyy-MM-dd}.%i.jsonl.gz</fileNamePattern>
+      <maxFileSize>50MB</maxFileSize>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>2GB</totalSizeCap>
+    </rollingPolicy>
+  </appender>
+
+  <logger name="BRIDGE_API_AUDIT" level="INFO" additivity="false">
+    <appender-ref ref="AUDIT_FILE"/>
+  </logger>
+
+  <!-- 业务包 ERROR → Graylog；仍继承 root 的 CONSOLE -->
+  <if condition='property("GRAYLOG_ENABLED").equalsIgnoreCase("true")'>
+    <then>
+      <logger name="com.leadbank.csagent.pcbridge" level="INFO">
+        <appender-ref ref="asyncGelf"/>
+      </logger>
+    </then>
+  </if>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

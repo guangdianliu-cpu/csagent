@@ -1,0 +1,146 @@
+# fund-research-db 的原生工具：内核按这里的 JSON Schema 注册成 function calling 工具，
+# 调用时把参数 JSON 原样写进 query.py 的 stdin（--payload -），stdout 就是结果。
+# 返回统一信封：成功 {"ok": true, ...}；失败 {"ok": false, "error": {"code", "message", "suggestions"?}}。
+#
+# 分工：一次调用能做完的查询用这里的工具；要合并多张表、组内排名分档、算库里没有的指标、
+# 取全量再加工或出 Excel / 图时，写脚本用 scripts/lib.py（见 SKILL.md）。
+
+tools:
+  - name: fund_db_get
+    script: scripts/query.py
+    argv: [--action, get, --payload, "-"]
+    description: >-
+      查一只基金、一位基金经理、一家基金公司或一只私募产品的完整档案（含「一句话基金画像」）。
+      keyword 填代码（带不带 .OF 都行）或名称，用户怎么说就怎么填：公司写全称、带「债券」「混合」
+      等类型词也能近似对上库里的简称（match=fuzzy_name，回答里注明用的是哪只）。
+      命中多只时返回候选列表，再用代码精确查；没对上时 similar 里是名字相近的几只，只供核对。
+      只查一个对象；要按条件找一批用 fund_db_list。
+    parameters:
+      type: object
+      properties:
+        entity: &entity
+          type: string
+          enum:
+            - active_bond_funds
+            - active_equity_funds
+            - active_fixed_income_plus_funds
+            - qdii_equity_funds
+            - qdii_bond_funds
+            - fund_managers_equity
+            - fund_managers_fixed_income
+            - fund_companies
+            - fund_trading_ability
+            - convertible_bond_funds
+            - quant_equity_funds
+            - attribution_equity
+            - attribution_fixed_income
+            - industry_rotation_equity
+            - industry_rotation_fixed_income
+            - industry_allocation_sw
+            - industry_allocation_zx
+            - manager_industry_capabilities
+            - private_funds
+          description: >-
+            表名。公募核心：active_bond_funds 纯债、active_equity_funds 权益、active_fixed_income_plus_funds 固收+；
+            海外：qdii_equity_funds QDII权益、qdii_bond_funds QDII债券；
+            经理与公司：fund_managers_equity 权益基金经理、fund_managers_fixed_income 固收+基金经理、fund_companies 基金公司；
+            特色评价：fund_trading_ability 交易能力、convertible_bond_funds 可转债、quant_equity_funds 量化；
+            归因与轮动：attribution_equity 权益归因、attribution_fixed_income 固收+归因、
+            industry_rotation_equity 权益轮动、industry_rotation_fixed_income 固收+轮动；
+            行业与私募：industry_allocation_sw 申万行业配置、industry_allocation_zx 中信行业配置、
+            manager_industry_capabilities 行业投资能力、private_funds 私募
+        keyword:
+          type: string
+          description: 代码或名称关键字，如 485111、工银双利、徐婕、西部利得、09408B
+      required: [entity, keyword]
+      additionalProperties: false
+
+  - name: fund_db_list
+    script: scripts/query.py
+    argv: [--action, list, --payload, "-"]
+    description: >-
+      在一张表里按条件筛选、排序、选列，一次最多返回 200 行；命中更多时用返回的 next_offset 翻页。
+      数值列都能用 eq/ne/gt/gte/lt/lte/in 筛选，也都能排序；文本列只有 fund_db_fields 返回的
+      text_filterable 里列出的能筛选。ne 是不等于，空值行也会返回。
+      不能跨表、不能分组统计：要合并多张表、组内排名、算库里没有的指标、或取全量再加工时，
+      写脚本用 lib（from lib import query_df），不要在这里一页页翻。
+    parameters:
+      type: object
+      properties:
+        entity: *entity
+        filters: &filters
+          type: array
+          description: 筛选条件，多个条件之间是「且」
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: 真实列名；不确定时先用 fund_db_fields 查
+              op:
+                type: string
+                enum: [eq, ne, gt, gte, lt, lte, in, like]
+              value:
+                description: 比较值；in 传数组，like 传要包含的关键字
+            required: [field, op, value]
+        order_by:
+          type: object
+          properties:
+            field:
+              type: string
+            direction:
+              type: string
+              enum: [asc, desc]
+          required: [field]
+        select:
+          type: array
+          items:
+            type: string
+          description: 要返回的列；不传返回该表的默认核心列
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: 每页条数，默认 20
+        offset:
+          type: integer
+          minimum: 0
+          description: 翻页起点，填上一页返回的 next_offset
+      required: [entity]
+      additionalProperties: false
+
+  - name: fund_db_fields
+    script: scripts/query.py
+    argv: [--action, fields, --payload, "-"]
+    description: >-
+      某张表的真实列名，并标出文本列（text_columns）和能筛选的文本字段（text_filterable），
+      其余都是数值列。不确定列名时先查它；同一会话里同一张表查一次就够。
+    parameters:
+      type: object
+      properties:
+        entity: *entity
+      required: [entity]
+      additionalProperties: false
+
+  - name: fund_db_values
+    script: scripts/query.py
+    argv: [--action, values, --payload, "-"]
+    description: >-
+      看某个字段有哪些取值、数值大致什么范围：文本列返回取值和条数（从多到少），数值列返回最小、
+      四分位、中位、最大和均值，取值不超过 20 种时再列出每个取值的条数。可带 filters 先筛，
+      写法同 fund_db_list。想知道分类名怎么写、某个指标的分布时用它，不要写脚本去统计。
+    parameters:
+      type: object
+      properties:
+        entity: *entity
+        field:
+          type: string
+          description: 要看取值的列名
+        filters: *filters
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: 文本列最多返回多少个取值，默认 50
+      required: [entity, field]
+      additionalProperties: false

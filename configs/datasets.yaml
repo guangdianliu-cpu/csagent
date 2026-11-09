@@ -1,0 +1,19 @@
+# configs/datasets.yaml — 管理后台可发布的数据集
+#
+# 每个数据集指定一个 builder 脚本（相对项目根），约定三条命令行接口：
+#   <builder> --describe                           → stdout 一行 JSON：当前数据状态
+#   <builder> --publish <文件> --filename <原名> --json
+#                                                  → stdout 一行 JSON：{"ok": true|false, ...}
+# 发布语义由 builder 自己保证：校验失败不动线上数据；成功即覆盖旧文件（不保留历史）。
+
+datasets:
+  - id: fund-research-db
+    title: 投研数据库
+    description: 利得基金投研 Excel 数据库。按文件名自动识别所属数据表，发布后立即生效。
+    builder: skills/fund-research-db/scripts/build_cache.py
+    accept: [".xlsx"]
+    max_upload_mb: 200
+    publish_timeout_seconds: 1800
+    # 透传给 builder 子进程的变量名（值取 os.environ，其次 .env）
+    env_extra:
+      - FUND_RESEARCH_DATA_DIR

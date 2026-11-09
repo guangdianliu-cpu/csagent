@@ -1,0 +1,17 @@
+# configs/agent.yaml — 默认挂载的 tool_packs。
+# 部署形态由 AGENT_PROFILE 选择（configs/profiles/<name>/），形态可覆盖这里的 tool_packs。
+# 见 docs/产品切换.md。
+
+# 未设置 AGENT_PROFILE 时使用的形态
+default_profile: product
+
+tool_packs:
+  - script_executor
+  - workspace_files
+  - artifacts
+  - html_pdf
+  - skills
+  - reply_preference
+  - todo
+  - image_tools
+

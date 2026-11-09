@@ -1,0 +1,106 @@
+[project]
+name = "cs-agent"
+version = "0.1.0"
+description = "通用 Agent 服务（文件/脚本/搜索/HTTP/Excel/MCP + 可选基金产品咨询）"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "httpx>=0.27.0",
+    "structlog>=24.4.0",
+    "pyyaml>=6.0.2",
+    "python-dotenv>=1.0.1",
+    "wecom-aibot-python-sdk>=1.0.2",
+    "python-multipart>=0.0.9",
+    "openpyxl>=3.1.0",
+    # 会话脚本出折线/柱状/饼图等 PNG；无桌面环境用 Agg 后端。
+    # 上限是 CentOS 7（glibc 2.17）还能直接装 manylinux2014 wheel 的最后一档。
+    # 再新的 numpy 2.3+ / pandas 2.3+ / contourpy 1.3.3+ 只有 manylinux_2_28，
+    # pip 会退回源码编译；生产机 GCC 4.8.5 且没有 g++，必然失败。
+    "matplotlib>=3.8.0,<3.12",
+    "numpy>=1.26.0,<2.2",
+    "pandas>=2.2.0,<2.3",
+    "contourpy>=1.0.1,<1.3.3",
+    # Pillow 12 起的 wheel 只要 glibc 2.27+，CentOS 7 会退回源码编译，机器上没有 libjpeg。
+    "pillow>=10,<12",
+    # 默认记忆后端（configs/base.yaml: memory_backend: redis）已依赖它，非可选。
+    "redis>=5.0.0",
+    # 发版脚本只执行 `pip install -e .`，不装 optional extra。
+    # HTML→PDF 与模板技能因此放在主依赖里。Pango、Noto CJK、LibreOffice
+    #sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-noto-cjk libreoffice-writer libreoffice-impress
+    # 是系统包，由运维单独安装，不在这里。
+    "weasyprint>=62.3",
+    "python-docx>=1.1.0",
+    "python-pptx>=1.0.0",
+    "pypdf>=4.0.0",
+    # PyMuPDF 2.0 会带上 pymupdf4llm 和 onnxruntime，模板预览用不到。
+    "pymupdf>=1.24.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    # 静态检查：ruff check .（规则见下方 [tool.ruff.lint]）
+    "ruff>=0.6.0",
+]
+# 保留 extra 名字，向后兼容既有安装脚本（cs-agent[redis]）。
+redis = [
+    "redis>=5.0.0",
+]
+ocr = [
+    "rapidocr-onnxruntime>=1.3.0",
+    "pillow>=10.0.0",
+]
+# docs / pdf 里的包已在主依赖中。extra 保留，避免旧的 `pip install -e ".[docs]"` / `.[pdf]` 失效。
+docs = [
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+]
+pdf = [
+    "weasyprint>=62.3",
+]
+mcp = [
+    "mcp>=1.8.0",
+]
+# tiktoken 是**可选优化**，不是必需依赖：memory/token_counter.py 未装时自动降级为
+# 字符估算（中文≈2 tokens/字），只影响记忆压缩的触发精度，不影响功能。
+#
+# 之所以从 dependencies 挪出来（2026-08-21，CentOS 7 生产机装不上）：
+# 1. 它是 Rust 扩展，glibc 2.17 只能吃 manylinux2014 轮子，cp 标签对不上就回退
+#    源码编译，而机器上没有 Rust 工具链 → 整个 pip install 失败、阻塞上线。
+# 2. 就算装上了收益也接近零：线上模型（deepseek-*）不在 tiktoken 注册表里，
+#    会退到 cl100k_base，而那个首次使用要联网下载 BPE 文件，内网机器同样拿不到。
+#
+# 有外网、且确实需要精确计数时再单独装：pip install -e ".[tokenizer]"
+tokenizer = [
+    "tiktoken>=0.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/csagent"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+# .gitignore 里的 data/、scripts/tools/（模型现写的会话脚本）、repos/ 不检查
+
+[tool.ruff.lint]
+# 只开能抓真问题的规则：未定义 / 未使用的名字（F）、语法错误（E9）、常见陷阱（B）
+select = ["F", "E9", "B"]
+ignore = [
+    "B008",  # FastAPI 的 Depends(...) / File(...) 默认参数是框架约定写法
+    "B905",  # zip(strict=) 会改变运行时行为，按需逐处加，不做全局要求
+]

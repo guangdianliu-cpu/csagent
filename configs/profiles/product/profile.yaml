@@ -1,0 +1,18 @@
+# configs/profiles/product/profile.yaml — 产品咨询
+# AGENT_PROFILE=product 时生效（也是未设 AGENT_PROFILE 时的默认形态，见 configs/agent.yaml）。
+# 同目录的 agent.md 是本形态的系统提示词；实例级配置放在项目根的 .env.product。
+# 工具包、领域文案直接沿用 configs/agent.yaml / tool_packs.yaml / domain_text.yaml，
+# 只在下面覆盖与默认不同的部分。
+
+# 本形态可见的 Skill（白名单）。写了这个键，SKILL.md 里的 enabled 就不再起作用。
+skills:
+  - fund-product-query
+
+tool_pack_overrides:
+  script_executor:
+    config:
+      # 对客形态只跑 Skill 自带的、经过评审的脚本：模型不能现写脚本（write_script 不挂载），
+      # run_script 也拒绝会话脚本与共享脚本。以前只靠提示词一句「禁止」约束，
+      # 一次提示注入就能在宿主机上跑任意代码、读到 .env 里的密钥。
+      write_enabled: false
+      skill_scripts_only: true

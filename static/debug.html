@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>小窗调试页</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f7fa; color: #1f2a37; padding: 28px 24px 60px; min-height: 100vh;
+    }
+    h1 { font-size: 19px; margin-bottom: 6px; }
+    .sub { color: #6b7a90; font-size: 13px; line-height: 1.8; margin-bottom: 18px; }
+    .card {
+      background: #fff; border: 1px solid #e6ebf2; border-radius: 8px;
+      padding: 16px 18px; max-width: 900px; margin-bottom: 14px;
+    }
+    .card h2 { font-size: 14px; margin-bottom: 12px; color: #001529; }
+    label { font-size: 13px; display: block; margin-bottom: 10px; }
+    label > span { display: inline-block; width: 78px; color: #6b7a90; vertical-align: top; }
+    input, textarea {
+      border: 1px solid #d9e1ec; border-radius: 4px; padding: 6px 9px;
+      font: inherit; font-size: 12px; width: 620px; max-width: calc(100% - 84px);
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    textarea { height: 58px; resize: vertical; }
+    button {
+      background: #1890ff; color: #fff; border: 0; border-radius: 4px;
+      padding: 8px 15px; font: inherit; font-size: 13px; cursor: pointer;
+      margin-right: 6px; margin-top: 6px;
+    }
+    button.ghost { background: #fff; color: #1f2a37; border: 1px solid #d9e1ec; }
+    button:disabled { opacity: .6; cursor: default; }
+    .hint { font-size: 12px; color: #6b7a90; margin-top: 10px; line-height: 1.8; }
+    .error { color: #cf1322; font-size: 12px; min-height: 18px; }
+    .who { font-size: 13px; color: #6b7a90; margin-bottom: 14px; }
+    .hidden { display: none; }
+    code { background: #eef2f7; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    #log {
+      font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+      background: #0d1b2a; color: #9fb8cd; border-radius: 6px; padding: 12px;
+      height: 190px; overflow-y: auto; white-space: pre-wrap; line-height: 1.65;
+    }
+    #log .ok { color: #52c41a; }
+    #log .err { color: #ff7875; }
+    #log .out { color: #fa8c16; }
+    #log .dim { color: #5b7085; }
+  </style>
+</head>
+<body>
+  <h1>小窗调试页</h1>
+  <p class="sub">
+    与小窗同源，postMessage 握手直接放行，不需要改 <code>HOST_ORIGIN_ALLOWLIST</code>。<br />
+    需管理员登录；令牌由服务端现签（最长 2 小时），页面本身不含任何令牌。
+  </p>
+
+  <section class="card hidden" id="login">
+    <h2>管理员登录</h2>
+    <form id="login-form">
+      <label><span>用户名</span><input type="text" id="username" autocomplete="username" required /></label>
+      <label><span>口令</span><input type="password" id="password" autocomplete="current-password" required /></label>
+      <div class="error" id="login-error"></div>
+      <button type="submit" id="login-btn">登录</button>
+    </form>
+  </section>
+
+  <div id="app" class="hidden">
+    <div class="who">管理员 <strong id="who-name"></strong> <button class="ghost" id="logout">退出</button></div>
+
+    <div class="card">
+      <h2>1 · 身份</h2>
+      <label><span>userId</span><input id="f-user" value="local_user" /></label>
+      <label><span>姓名</span><input id="f-name" value="本地调试" /></label>
+      <label><span>令牌</span><textarea id="f-token" placeholder="点「签发令牌」自动填入"></textarea></label>
+      <p>
+        <button id="btn-sign">签发令牌</button>
+        <button id="btn-init" class="ghost">初始化小窗</button>
+        <button id="btn-auth" class="ghost">重新下发登录态</button>
+        <button id="btn-open" class="ghost">打开小窗</button>
+        <button id="btn-probe" class="ghost">只验令牌</button>
+        <button id="btn-theme" class="ghost">试试换肤</button>
+      </p>
+      <p class="hint">
+        改了 userId 后重新「签发令牌」，再点「重新下发登录态」即可（SDK 的 init 只能调一次）。
+        每次签发都会记审计日志。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>2 · 消息日志</h2>
+      <div id="log"></div>
+      <p class="hint">
+        <code>ready</code> 小窗要登录态 ｜ <code>busy</code> 正在生成 ｜
+        <code>unauthorized</code> 令牌被后端拒了（多半是过期，重新签一个）｜
+        <code>drag-start</code> 拖动握手
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // 与 admin.html 共用同一个 key：同一标签页里登过管理后台就不必再登
+    var TOKEN_KEY = "csagent_admin_token";
+    var $ = function (id) { return document.getElementById(id); };
+
+    function getAdminToken() {
+      try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; }
+    }
+    function setAdminToken(t) {
+      try { t ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+    }
+
+    function log(kind, text) {
+      var cls = { err: "err", out: "out", dim: "dim" }[kind] || "ok";
+      var mark = kind === "out" ? "▶ 发" : (kind === "err" ? "✗ " : (kind === "dim" ? "· " : "◀ 收"));
+      var line = document.createElement("span");
+      line.className = cls;
+      line.textContent = mark;
+      $("log").appendChild(line);
+      $("log").appendChild(document.createTextNode(" " + text + "\n"));
+      $("log").scrollTop = $("log").scrollHeight;
+    }
+    function val(id) { return $(id).value.trim(); }
+
+    // 相对路径：本页在 {前缀}/debug，接口在 {前缀}/api/...
+    async function adminApi(path, opts) {
+      opts = opts || {};
+      var headers = Object.assign({}, opts.headers || {});
+      var token = getAdminToken();
+      if (token) headers["Authorization"] = "Bearer " + token;
+      var resp = await fetch("api/admin/" + path, Object.assign({}, opts, { headers: headers }));
+      var data = null;
+      try { data = await resp.json(); } catch (_) {}
+      if (resp.status === 401) {
+        setAdminToken("");
+        showLogin((data && data.detail) || "登录已失效，请重新登录");
+        throw new Error("unauthorized");
+      }
+      if (!resp.ok) throw new Error((data && data.detail) || ("请求失败：" + resp.status));
+      return data;
+    }
+
+    function showLogin(msg) {
+      $("app").classList.add("hidden");
+      $("login").classList.remove("hidden");
+      $("login-error").textContent = msg || "";
+    }
+
+    async function showApp() {
+      var me;
+      try { me = await adminApi("me"); } catch (_) { return; }
+      $("who-name").textContent = me.username;
+      $("login").classList.add("hidden");
+      $("app").classList.remove("hidden");
+    }
+
+    $("login-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      $("login-btn").disabled = true;
+      $("login-error").textContent = "";
+      try {
+        var resp = await fetch("api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: val("username"), password: $("password").value })
+        });
+        var data = await resp.json().catch(function () { return {}; });
+        if (!resp.ok) throw new Error(data.detail || "登录失败");
+        setAdminToken(data.token);
+        $("password").value = "";
+        await showApp();
+      } catch (err) {
+        $("login-error").textContent = err.message;
+      } finally {
+        $("login-btn").disabled = false;
+      }
+    });
+
+    $("logout").addEventListener("click", function () {
+      setAdminToken("");
+      $("f-token").value = "";
+      showLogin("");
+    });
+
+    $("btn-sign").addEventListener("click", async function () {
+      var btn = $("btn-sign");
+      btn.disabled = true;
+      try {
+        log("out", "签发令牌 userId=" + val("f-user"));
+        var data = await adminApi("debug-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: val("f-user"), name: val("f-name") })
+        });
+        $("f-token").value = data.token;
+        log("in", "令牌已签发，有效 " + Math.round(data.expires_in / 60) + " 分钟");
+      } catch (err) {
+        if (err.message !== "unauthorized") log("err", err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // 宿主唯一要提供的东西：当前是谁 + 一个后端签好的令牌
+    function currentAuth() {
+      var auth = { userId: val("f-user"), userName: val("f-name"), token: val("f-token") };
+      log("out", "auth userId=" + auth.userId + " → session_id=web:" + auth.userId);
+      return auth;
+    }
+
+    var booted = false;
+
+    $("btn-init").addEventListener("click", function () {
+      if (booted) { log("err", "已初始化过（SDK 的 init 有幂等保护）。改完参数点「重新下发登录态」"); return; }
+      if (!val("f-token")) { log("err", "令牌为空，先点「签发令牌」"); return; }
+
+      var s = document.createElement("script");
+      s.src = "agent-widget.js";
+      s.onerror = function () { log("err", "SDK 加载失败"); };
+      s.onload = function () {
+        // 不传 origin / path —— SDK 会从自己的 URL 推出来
+        window.CsAgentWidget.init({
+          title: "小窗（调试）",
+          debug: true,
+          getAuth: currentAuth,
+          onMessage: function (msg) {
+            var extra = "";
+            if (msg.type === "busy") extra = "=" + !!(msg.payload && msg.payload.busy);
+            if (msg.type === "unauthorized") extra = " ← 令牌失效，重新签一个";
+            log(msg.type === "unauthorized" ? "err" : "in", msg.type + extra);
+          }
+        });
+        booted = true;
+        log("in", "SDK 就绪，气泡已出现在右下角");
+        window.CsAgentWidget.open();
+      };
+      document.head.appendChild(s);
+    });
+
+    $("btn-auth").addEventListener("click", function () {
+      if (!booted) { return log("err", "先点「初始化小窗」"); }
+      window.CsAgentWidget.refreshAuth();
+    });
+
+    $("btn-open").addEventListener("click", function () {
+      if (!booted) { return log("err", "先点「初始化小窗」"); }
+      window.CsAgentWidget.open();
+    });
+
+    $("btn-theme").addEventListener("click", function () {
+      if (!booted) { return log("err", "先点「初始化小窗」"); }
+      window.CsAgentWidget.setTheme({ accent: "#7c3aed", "user-bg": "#7c3aed", navy: "#2e1065" });
+      log("out", "theme: 紫色（验证宿主换肤通道）");
+    });
+
+    // 绕开小窗直接打接口——用来分辨「令牌不对」还是「前端没接好」
+    $("btn-probe").addEventListener("click", function () {
+      log("out", "GET api/skills");
+      fetch("api/skills", {
+        headers: { Authorization: "Bearer " + val("f-token") }
+      }).then(function (r) {
+        if (r.status === 200) log("in", "200 令牌有效");
+        else if (r.status === 401) log("err", "401 令牌无效或已过期，重新签一个");
+        else log("err", r.status + " 非预期状态");
+      }).catch(function (e) { log("err", "请求失败：" + e.message); });
+    });
+
+    fetch("api/admin/me", { headers: getAdminToken() ? { Authorization: "Bearer " + getAdminToken() } : {} })
+      .then(function (r) { return r.ok ? showApp() : showLogin(""); })
+      .catch(function () { showLogin(""); });
+  </script>
+</body>
+</html>

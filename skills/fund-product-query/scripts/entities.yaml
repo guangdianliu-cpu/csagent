@@ -1,0 +1,1008 @@
+# 产品中心 API 实体描述（本分支专用，无 Oracle 表映射）
+# 供 LLM 构造 QuerySpec；实际执行走 product-pc-bridge HTTP
+# 能力对齐 fims fund/detail.app（HEADER / INVEST / RISK）及交易参数侧接口
+
+entities:
+  fund_products:
+    domain: product
+    description: >
+      基金产品（对齐 fims detail.app HEADER）。按 fund_code 查详情；按 fund_name（eq/like）
+      模糊检索名称或代码（摘要列表，含管理人/TA）；也可按 manager_code / tacode /
+      consign_flag / fund_type / fundstate / product_type 列表筛选（无关键词时依赖产品中心
+      PageReq 能力，结果可能不全，勿当全量代销榜）。详情交易侧字段同时覆盖个人/机构
+      （custtype=1/0 拆行，可用 custtype 过滤）。
+    related_entities:
+      - fund_performance
+      - fund_archive
+      - fund_fee_rates
+      - fund_trade_limits
+      - fund_open_periods
+      - fund_risk_index
+      - fund_holdings
+    default_limit: 10
+    max_rows: 30
+    fields:
+      fund_code:
+        type: string
+        description: 基金代码（6 位纯数字；勿带行情后缀 .OF，如 000001 而非 000001.OF）
+        filterable: true
+        sortable: true
+        ops: [eq, in]
+      custtype:
+        type: enum
+        description: 客户类型 1个人/0机构；未传时工具侧默认 0（机构），与 fims HEADER 对齐
+        filterable: true
+        ops: [eq]
+        values:
+          "1": 个人
+          "0": 机构
+      custtype_name:
+        type: string
+        description: 客户类型名称
+      fund_name:
+        type: string
+        description: 基金简称（支持 like 模糊；也可匹配代码片段）
+        filterable: true
+        ops: [eq, like]
+      fund_full_name:
+        type: string
+        description: 基金全称
+      fund_type:
+        type: string
+        description: 投资类型 01股票/02债/03混合/04货币/08 QDII 等（列表侧可筛，可能不全）
+        filterable: true
+        ops: [eq, in]
+      fund_type_name:
+        type: string
+        description: 投资类型名称
+      fund_sub_type:
+        type: string
+        description: 基金子类型
+      fund_sub_type_name:
+        type: string
+      product_type:
+        type: enum
+        description: 产品大类 00公募/01私募/02资管（列表侧可筛，可能不全）
+        filterable: true
+        ops: [eq, in]
+        values:
+          "00": 公募
+          "01": 私募
+          "02": 资管
+      fund_category:
+        type: enum
+        description: 产品分类 1公募/3私募/4资管/5投顾
+        filterable: true
+        ops: [eq, in]
+      new_fund_type:
+        type: string
+        description: 新基金分类
+      three_fund_type:
+        type: string
+        description: 三级分类
+      consign_flag:
+        type: string
+        description: 是否代销；仅值为 1 表示代销，0/空/缺失 表示不代销
+        filterable: true
+        ops: [eq]
+      fundstate:
+        type: string
+        description: 基金状态
+        filterable: true
+        ops: [eq, in]
+      buystatus:
+        type: string
+        description: 申购/认购状态（复合字段，认购与申购共用本字段，系统无单独认购状态）；1 可申购/可认购，0 不可，空或缺失表示未返回（禁止当成可申购或可认购）
+        filterable: true
+        ops: [eq]
+      redeemstatus:
+        type: string
+        description: 赎回状态；空/缺失表示未返回（禁止当成可赎回）
+        filterable: true
+        ops: [eq]
+      nav:
+        type: number
+        description: 最新净值
+        sortable: true
+      nav_display:
+        type: string
+        description: 净值展示值
+      nav_update_date:
+        type: string
+        description: 净值日期
+      cumulative_nav:
+        type: number
+        description: 累计净值
+      total_nav:
+        type: number
+        description: 总净值/累计净值原始字段
+      day_rose:
+        type: number
+        description: 日涨跌幅%
+      unit_yield:
+        type: number
+        description: 万份收益（货币）
+      yearly_roe:
+        type: number
+        description: 七日年化（货币）
+      week_rose:
+        type: number
+        description: 近一周涨幅%
+      month_rose:
+        type: number
+        description: 近一月涨幅%
+      quarter_rose:
+        type: number
+        description: 近一季涨幅%
+      halfyear_rose:
+        type: number
+        description: 近半年涨幅%
+      year_rose:
+        type: number
+        description: 近一年涨幅%
+      thisyear_rose:
+        type: number
+        description: 今年以来涨幅%
+      twoyear_rose:
+        type: number
+        description: 近两年涨幅%
+      setup_rose:
+        type: number
+        description: 成立以来涨幅%
+      fund_sector:
+        type: string
+        description: 风险等级（优先 risky_type）
+      risky_type:
+        type: string
+        description: 风险等级代码
+      risky_name:
+        type: string
+        description: 风险等级名称
+      manager_code:
+        type: string
+        description: 管理人代码（列表可筛；无 fund_name 时依赖产品中心 PageReq，结果可能不全）
+        filterable: true
+        ops: [eq]
+      manager_name:
+        type: string
+        description: 管理人名称（详情字段；按名称搜管理人用实体 fund_mgmt_orgs）
+      fund_admin:
+        type: string
+        description: 基金管理人
+      fund_trustee:
+        type: string
+        description: 基金托管人
+      fund_managers:
+        type: string
+        description: 基金经理（姓名摘要）
+      tacode:
+        type: string
+        description: TA 代码（列表可筛；无 fund_name 时结果可能不全）
+        filterable: true
+        ops: [eq]
+      taname:
+        type: string
+        description: TA 名称（详情字段；按名称搜 TA 用实体 fund_ta_info）
+      setup_date:
+        type: string
+        description: 成立日
+      market_date:
+        type: string
+        description: 上市/运作起始日
+      issue_size:
+        type: number
+        description: 发行规模
+      asset_amount:
+        type: number
+        description: 最新资产规模
+      asset_report_date:
+        type: string
+        description: 规模报告期
+      min_value:
+        type: number
+        description: 起购金额
+      min_value_display:
+        type: string
+      max_value:
+        type: number
+        description: 单笔上限
+      max_value_display:
+        type: string
+      day_max_sum:
+        type: number
+        description: 单日累计上限
+      day_max_sum_display:
+        type: string
+      mini_hold_amount:
+        type: number
+        description: 最低持有金额
+      manage_ratio:
+        type: number
+        description: 管理费率（%/年；来自 queryFundFeeRate，HEADER 可能为空）
+      hosting_rate:
+        type: number
+        description: 托管费率（%/年；来自 queryFundFeeRate）
+      service_rate:
+        type: number
+        description: 销售服务费率（%/年；来自 queryFundFeeRate，已按产品中心口径换算）
+      admin_service_rate:
+        type: number
+        description: 行政服务费率
+      spcl_manage_rate_desc:
+        type: string
+        description: 特殊管理费说明（工具侧已剔除长文本，勿依赖；有则简述「浮动/特殊管理费详见合同」）
+      spcl_redeem_desc:
+        type: string
+        description: 特殊赎回费说明（工具侧已剔除长文本，勿依赖）
+      dividend_method:
+        type: string
+        description: 默认分红方式
+      lock_period:
+        type: number
+        description: 锁定期数值
+      lock_period_unit:
+        type: string
+        description: 锁定期单位
+      lock_period_desc:
+        type: string
+        description: 锁定期描述（如 90日）
+      closed_flag:
+        type: string
+        description: 是否封闭期 1是
+      closed_period:
+        type: number
+      closed_period_unit:
+        type: string
+      app_ipo_flag:
+        type: string
+        description: 是否发行期 1是
+      sell_out_flag:
+        type: string
+        description: 是否售罄
+      public_flag:
+        type: string
+        description: 是否公开（私募场景）
+      purchase_start_dt:
+        type: string
+        description: 申购开始日
+      purchase_end_dt:
+        type: string
+        description: 申购结束日
+      redeem_start_dt:
+        type: string
+        description: 赎回开始日
+      redeem_end_dt:
+        type: string
+        description: 赎回结束日
+      sele_start_time:
+        type: string
+        description: 当日交易开始时间
+      sele_end_time:
+        type: string
+        description: 当日交易截止时间
+      buy_ack_days:
+        type: number
+        description: 申购确认 T+N
+      redeem_ack_days:
+        type: number
+        description: >
+          赎回份额确认所需交易日数（自赎回申请日起计，如 1 表示 T+1 确认）。
+          仅描述份额确认节点，不是赎回到账总周期；勿与 redemption_cash_date 天数相加。
+      sub_ack_days:
+        type: number
+        description: 认购确认 T+N
+      open_regulation:
+        type: string
+        description: 开放规则说明
+      redem_regulation:
+        type: string
+        description: 赎回规则说明
+      profit_explain:
+        type: string
+        description: 收益说明
+      invest_object:
+        type: string
+        description: 投资目标
+      fund_desc:
+        type: string
+        description: 产品描述
+      fund_intro:
+        type: string
+        description: 产品简介
+      operation_period:
+        type: string
+        description: 运作期限
+      period_type:
+        type: string
+      trade_fund_code:
+        type: string
+        description: 交易代码（若与披露代码不同）
+      fund_main_code:
+        type: string
+        description: 主基金代码
+      is_auto_invest:
+        type: string
+        description: 是否支持定投
+      net_sale_flag:
+        type: string
+      same_day_purchase_flag:
+        type: string
+      soon_purchase_flag:
+        type: string
+      only_appt_pur_flag:
+        type: string
+        description: 是否仅预约购买
+      result_reward_standard:
+        type: string
+        description: 业绩报酬基准
+      result_reward_remark:
+        type: string
+      float_fee_type:
+        type: string
+      float_fee:
+        type: number
+      invest_cust_count:
+        type: number
+        description: 投资人数上限相关
+      usable_invest_cust_count:
+        type: number
+        description: 剩余可投人数
+      settle_method:
+        type: string
+      settle_method_name:
+        type: string
+      redemption_cash_date:
+        type: string
+        description: >
+          赎回款到账说明（自赎回申请日起计的总到账周期，如 T+2 表示申请后第 2 个交易日到账）。
+          对客答复「赎回到账时间」优先以此字段为准；禁止理解为「赎回确认后再加 N 天」。
+
+  fund_archive:
+    domain: product
+    description: 基金档案（detail.app RISK：querFundArchiveInfo），含投资范围/策略/经理列表
+    related_entities: [fund_products, fund_risk_index]
+    default_limit: 5
+    max_rows: 10
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      fund_name:
+        type: string
+      fund_type:
+        type: string
+      fund_type_name:
+        type: string
+      establish_date:
+        type: string
+        description: 成立日
+      asset_amount:
+        type: number
+        description: 资产规模
+      share:
+        type: number
+        description: 份额规模
+      report_date:
+        type: string
+      fund_admin:
+        type: string
+      fund_trustee:
+        type: string
+      fund_managers:
+        type: string
+      invest_field:
+        type: string
+        description: 投资范围
+      invest_object:
+        type: string
+        description: 投资目标
+      invest_strategy:
+        type: string
+        description: 投资策略
+      risk_return_character:
+        type: string
+        description: 风险收益特征
+      performance_benchmark:
+        type: string
+        description: 业绩比较基准
+      default_dividend_type:
+        type: string
+      lock_period:
+        type: number
+      lock_period_unit:
+        type: string
+      managers:
+        type: string
+        description: 经理明细列表（JSON 数组摘要）
+
+  fund_risk_index:
+    domain: product
+    description: 风险指标（detail.app RISK：queryFundRiskIndex）波动/夏普等
+    related_entities: [fund_products, fund_performance]
+    default_limit: 5
+    max_rows: 10
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      index_type:
+        type: string
+      trade_date:
+        type: string
+        description: 指标日期
+      std_halfyear:
+        type: number
+        description: 近半年波动
+      std_year:
+        type: number
+        description: 近一年波动
+      std_twoyear:
+        type: number
+      std_threeyear:
+        type: number
+      std_fiveyear:
+        type: number
+      std_since_found:
+        type: number
+      sharpe_halfyear:
+        type: number
+        description: 近半年夏普
+      sharpe_year:
+        type: number
+        description: 近一年夏普
+      sharpe_twoyear:
+        type: number
+      sharpe_threeyear:
+        type: number
+
+  fund_holdings:
+    domain: product
+    description: 重仓持股/持债（detail.app INVEST：queryFundAssetPosition）
+    related_entities: [fund_products]
+    default_limit: 20
+    max_rows: 50
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      holding_type:
+        type: enum
+        description: stock/bond/asset_config（资产配置占比序列）
+        filterable: true
+        ops: [eq]
+        values:
+          stock: 股票重仓
+          bond: 债券重仓
+          asset_config: 资产配置占比
+      asset_name:
+        type: string
+        description: 证券名称
+      asset_fund_code:
+        type: string
+        description: 证券代码
+      net_percent:
+        type: number
+        description: 占净值比%
+      hold_shares_amount:
+        type: number
+      position_market_val:
+        type: number
+      invest_year:
+        type: number
+      invest_quarter:
+        type: string
+      day_rose:
+        type: number
+      report_date:
+        type: string
+        description: 资产配置报告日（holding_type=asset_config）
+      stock_percent:
+        type: number
+        description: 股票占净值%
+      bond_percent:
+        type: number
+        description: 债券占净值%
+      cash_percent:
+        type: number
+        description: 现金占净值%
+      other_percent:
+        type: number
+        description: 其他占净值%
+
+  fund_asset_scale:
+    domain: product
+    description: 历史规模（detail.app INVEST：queryFundAssetScaleList）
+    related_entities: [fund_products, fund_holders]
+    default_limit: 10
+    max_rows: 30
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      change_date:
+        type: string
+      ann_date:
+        type: string
+      fund_total_share:
+        type: number
+        description: 总份额
+      fund_total_asset:
+        type: number
+        description: 总资产/规模
+
+  fund_holders:
+    domain: product
+    description: 持有人结构（detail.app INVEST：queryFundHolderInfoList）
+    related_entities: [fund_products, fund_asset_scale]
+    default_limit: 10
+    max_rows: 30
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      ann_date:
+        type: string
+      end_date:
+        type: string
+      holder_number:
+        type: number
+        description: 持有人户数
+      institution_holding_pct:
+        type: number
+        description: 机构持有占比%
+      personal_holding_pct:
+        type: number
+        description: 个人持有占比%
+      mngemp_holding_pct:
+        type: number
+        description: 管理人/员工持有占比%
+      institution_holding_share:
+        type: number
+      personal_holding_share:
+        type: number
+      holding_total_share:
+        type: number
+
+  fund_dividends:
+    domain: product
+    description: 分红记录（fims fundDividends / queryDividendDistrByFundCode）
+    related_entities: [fund_products]
+    default_limit: 10
+    max_rows: 30
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      fund_name:
+        type: string
+      report_date:
+        type: string
+      dividend_year:
+        type: number
+      register_date:
+        type: string
+        description: 权益登记日
+      ex_dividend_date:
+        type: string
+        description: 除息日
+      every_dividend:
+        type: number
+        description: 每份分红
+      dividend_date:
+        type: string
+        description: 派息日
+
+  fund_invest_style:
+    domain: product
+    description: 投资风格（queryFundInvestStyle）
+    related_entities: [fund_products, fund_holdings]
+    default_limit: 5
+    max_rows: 10
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      fund_style_sector:
+        type: string
+      fund_style_sector_name:
+        type: string
+      scale_style:
+        type: string
+        description: 规模风格
+      value_style:
+        type: string
+        description: 价值/成长风格
+      report_date:
+        type: string
+
+  fund_performance:
+    domain: product
+    description: >
+      涨跌幅与同类排名（有 fund_code 走单基业绩；无 fund_code 时按 order_by 排行）。
+      排行可按 fund_type=01/02/03/04 过滤；不传则合并股票/债/混合/货币后截断。
+    related_entities: [fund_products, fund_risk_index]
+    default_limit: 10
+    max_rows: 50
+    default_order_by:
+      field: thisyear_rose
+      direction: desc
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq, in]
+      fund_name:
+        type: string
+      fund_type:
+        type: string
+        description: 排行基金类型 01股票/02债/03混合/04货币
+        filterable: true
+        ops: [eq]
+      thisyear_rose:
+        type: number
+        description: 今年以来涨幅%
+        sortable: true
+      year_rose:
+        type: number
+        description: 近一年涨幅%
+        sortable: true
+      thisyear_ranking:
+        type: number
+        description: 今年以来同类排名
+        sortable: true
+      year_ranking:
+        type: number
+        description: 近一年同类排名
+      setup_rose:
+        type: number
+        description: 成立以来涨幅%
+        sortable: true
+      month_rose:
+        type: number
+        description: 近一月涨幅%
+        sortable: true
+      week_rose:
+        type: number
+        description: 近一周涨幅%
+        sortable: true
+      quarter_rose:
+        type: number
+      halfyear_rose:
+        type: number
+      twoyear_rose:
+        type: number
+      workday:
+        type: string
+        description: 业绩数据日
+
+  fund_fee_rates:
+    domain: product
+    description: >
+      基金费率（需 fund_code；个人+机构双查并标注 custtype）。
+      对客陈述时个人与机构同等优先级，勿默认只报个人；仅当用户明确身份时可用 custtype 过滤。
+    related_entities: [fund_products, fund_rate_discounts]
+    default_limit: 20
+    max_rows: 50
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq, in]
+      faretype:
+        type: string
+        description: 费用类型
+        filterable: true
+        ops: [eq]
+      fareratio:
+        type: number
+        description: 费率比例
+      farevalue:
+        type: number
+        description: 固定费用（元/笔；flag=单笔时用此字段，可为 0）
+      minvalue:
+        type: number
+        description: 下限（申购金额元或赎回持有天数）
+      maxvalue:
+        type: number
+        description: 上限（申购金额元或赎回持有天数）
+      flag:
+        type: string
+        description: 标志 0费率 1单笔 2特殊赎回费率
+      custtype:
+        type: string
+        description: 客户类型 1个人/0机构（双查结果均返回；陈述时对等，勿偏向个人）
+        filterable: true
+        ops: [eq]
+      unit:
+        type: string
+
+  fund_trade_limits:
+    domain: product
+    description: >
+      交易限额（需 fund_code；个人+机构双查，可用 custtype 过滤）。
+      对客陈述时个人与机构同等优先级，勿写成「仅个人起购/限额」。
+    related_entities: [fund_products]
+    default_limit: 20
+    max_rows: 50
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq, in]
+      busincode:
+        type: string
+        filterable: true
+        ops: [eq, in]
+      sharetype:
+        type: string
+      custtype:
+        type: string
+        description: 客户类型 1个人/0机构（双查结果均返回；陈述时对等，勿偏向个人）
+        filterable: true
+        ops: [eq]
+      trusttype:
+        type: string
+      minvalue:
+        type: number
+        description: 起购/下限
+      maxvalue:
+        type: number
+        description: 单笔上限；≥9999999999 表示暂无明确上限（对客勿念具体数字）
+      second_min:
+        type: number
+        description: 最小追加金额
+      min_share:
+        type: number
+        description: 最低持有份额
+      custmaxvalue:
+        type: number
+        description: 客户累计上限；≥9999999999 表示暂无明确上限
+      day_max_sum:
+        type: number
+        description: 单日累计上限；≥9999999999 表示暂无明确上限（对客勿念具体数字）
+      capital_mode:
+        type: string
+      trade_flag:
+        type: string
+      range:
+        type: number
+
+  fund_rate_discounts:
+    domain: product
+    description: >
+      费率折扣（需 fund_code）。一次返回个人折扣（按 net_no，默认 9998）与机构折扣（net_no=0001），
+      行上标注 custtype。问费率时默认应查询并陈述机构折扣（custtype=0）；个人折扣一并陈述，勿只报个人。
+    related_entities: [fund_fee_rates]
+    default_limit: 20
+    max_rows: 50
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq, in]
+      busincode:
+        type: string
+        filterable: true
+        ops: [eq]
+      discount:
+        type: number
+        description: 百分比费率折扣因子（原始值；对客请优先用 discount_desc）
+      discount_desc:
+        type: string
+        description: 折扣对客说明（网关已解读：1不打折、0免收、0.1为一折等）
+      fix_discount:
+        type: number
+        description: 单笔费率折扣因子（原始值；对客请优先用 fix_discount_desc）
+      fix_discount_desc:
+        type: string
+        description: 单笔折扣对客说明（口径同 discount_desc）
+      custtype:
+        type: string
+        filterable: true
+        ops: [eq]
+      net_no:
+        type: string
+      flag:
+        type: string
+
+  fund_open_periods:
+    domain: product
+    description: >
+      开放期窗口（需 fund_code）。产品中心不传 busincode 时只返回 020 认购；
+      默认合并查询 020/022/024；也可按 busincode 单查。
+      仅覆盖私募/资管（product_type=01/02）；公募（product_type=00，含名称带"定期开放"
+      的公募定开）本表一律无记录，不要为公募查本表。返回"无匹配数据"即为终态，
+      换字段名/换 busincode/去掉 filter 都不会有不同结果，请勿重试。
+    related_entities: [fund_products, current_workday]
+    default_limit: 20
+    max_rows: 50
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      busincode:
+        type: enum
+        description: 业务代码；不传则查认购+申购+赎回
+        filterable: true
+        ops: [eq, in]
+        values:
+          "020": 认购
+          "022": 申购
+          "024": 赎回
+      trade_start_date:
+        type: string
+        filterable: true
+        ops: [eq, gte, lte, gt, lt]
+      trade_end_date:
+        type: string
+        filterable: true
+        ops: [eq, gte, lte, gt, lt]
+      appt_start_time:
+        type: string
+      appt_end_time:
+        type: string
+
+  fund_quota_info:
+    domain: product
+    description: >
+      产品额度总控（需 fund_code，只读；主要面向私募等有名额产品）。
+      公募通常无额度配置：优先勿查；若查询返回 quota_configured=false 表示未配置，属正常口径非故障。
+      产品中心强制校验网点号；未传 net_no 时默认 0001（柜台，对齐 fims）。
+    related_entities: [fund_quota_control]
+    default_limit: 5
+    max_rows: 20
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      net_no:
+        type: string
+        description: 网点号（可选，默认 0001）
+        filterable: true
+        ops: [eq]
+      quota_configured:
+        type: boolean
+        description: 是否查到额度配置；false 表示公募等无额度或产品中心无记录
+      note:
+        type: string
+        description: 无配置时的说明
+      quota_limit:
+        type: string
+      share_quota:
+        type: number
+        description: 共享剩余名额
+      amount_limit:
+        type: string
+      share_usable_quota:
+        type: number
+      share_usable_amount:
+        type: number
+      excl_quota:
+        type: number
+      excl_usable_quota:
+        type: number
+      excl_usable_amount:
+        type: number
+      quota_type:
+        type: string
+        description: 1专享/2共享
+      only_appt_pur_flag:
+        type: string
+
+  fund_quota_control:
+    domain: product
+    description: >
+      网点专享额度（需 fund_code，只读）。未传 net_no 时默认 0001。
+    related_entities: [fund_quota_info]
+    default_limit: 20
+    max_rows: 50
+    fields:
+      fund_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      net_no:
+        type: string
+        description: 网点号（可选，默认 0001）
+        filterable: true
+        ops: [eq]
+      net_name:
+        type: string
+        description: 网点名称
+      share_quota:
+        type: number
+        description: 可用专享名额
+      note:
+        type: string
+
+  current_workday:
+    domain: product
+    description: 当前工作日（系统日）
+    default_limit: 1
+    max_rows: 1
+    fields:
+      workday:
+        type: string
+      curworkdate:
+        type: string
+
+  workdays:
+    domain: product
+    description: >
+      工作日日历。按 start_date+end_date（eq）查区间内工作日列表；
+      或按 date（eq）判断某日是否工作日（返回 is_business_day）。
+    related_entities: [current_workday, fund_open_periods]
+    default_limit: 31
+    max_rows: 366
+    fields:
+      start_date:
+        type: string
+        description: 区间起（YYYYMMDD）
+        filterable: true
+        ops: [eq]
+      end_date:
+        type: string
+        description: 区间止（YYYYMMDD）
+        filterable: true
+        ops: [eq]
+      date:
+        type: string
+        description: 单日判断是否工作日
+        filterable: true
+        ops: [eq]
+      workday:
+        type: string
+        description: 工作日日期
+      is_business_day:
+        type: boolean
+        description: 是否工作日（单日查询时）
+
+  fund_ta_info:
+    domain: product
+    description: >
+      TA 信息。按 tacode 精确查；按 taname（eq/like）模糊检索名称或代码。
+    default_limit: 5
+    max_rows: 20
+    fields:
+      tacode:
+        type: string
+        filterable: true
+        ops: [eq]
+      taname:
+        type: string
+        description: TA 名称（支持 like 模糊；也可匹配代码片段）
+        filterable: true
+        ops: [eq, like]
+      property:
+        type: string
+        description: TA 属性（公募/私募等）
+      append_dimension:
+        type: string
+      ta_credit_code:
+        type: string
+
+  fund_mgmt_orgs:
+    domain: product
+    description: >
+      基金管理人机构。按 manager_code 精确查；按 manager_name（eq/like）模糊检索名称或代码。
+    default_limit: 5
+    max_rows: 20
+    fields:
+      manager_code:
+        type: string
+        filterable: true
+        ops: [eq]
+      manager_name:
+        type: string
+        description: 管理人名称（支持 like 模糊；也可匹配代码片段）
+        filterable: true
+        ops: [eq, like]

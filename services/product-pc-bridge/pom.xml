@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.leadbank.csagent</groupId>
+  <artifactId>product-pc-bridge</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <name>product-pc-bridge</name>
+  <description>只读 HTTP 网关：对接产品中心 Dubbo Facade，供 cs-agent 调用</description>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.7.18</version>
+    <relativePath/>
+  </parent>
+
+  <properties>
+    <java.version>1.8</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- 正确 GAV：groupId 带 .facade（本地 m2 / 私服均如此） -->
+    <productcenter.facade.groupId>com.leadbank.productcenter.facade</productcenter.facade.groupId>
+    <productcenter.facade.version>0.0.2-35629-SNAPSHOT</productcenter.facade.version>
+    <!-- facade POM 未写 version（靠父 BOM）；单独引用时必须显式声明，否则缺 ICommonRequest -->
+    <leadbank.common.version>202410.1-SNAPSHOT</leadbank.common.version>
+    <dubbo.version>2.7.23</dubbo.version>
+    <logstash.gelf.version>1.15.1</logstash.gelf.version>
+  </properties>
+
+  <repositories>
+    <repository>
+      <id>leadbank-snapshots</id>
+      <url>http://10.1.1.135:9090/nexus/content/repositories/snapshots/</url>
+      <snapshots><enabled>true</enabled></snapshots>
+      <releases><enabled>false</enabled></releases>
+    </repository>
+    <repository>
+      <id>leadbank-releases</id>
+      <url>http://10.1.1.135:9090/nexus/content/repositories/releases/</url>
+      <snapshots><enabled>false</enabled></snapshots>
+      <releases><enabled>true</enabled></releases>
+    </repository>
+  </repositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>com.alibaba</groupId>
+      <artifactId>dubbo</artifactId>
+      <version>2.6.7</version>
+      <exclusions>
+        <exclusion>
+          <artifactId>spring</artifactId>
+          <groupId>org.springframework</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-all</artifactId>
+      <version>4.1.42.Final</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.zookeeper</groupId>
+      <artifactId>zookeeper</artifactId>
+      <version>3.4.6</version>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!--		<dependency>-->
+    <!--			<groupId>com.101tec</groupId>-->
+    <!--			<artifactId>zkclient</artifactId>-->
+    <!--			<version>0.3</version>-->
+    <!--		</dependency>-->
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-framework</artifactId>
+      <version>2.6.0</version>
+      <exclusions>
+        <exclusion>
+          <artifactId>zookeeper</artifactId>
+          <groupId>org.apache.zookeeper</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+
+
+    <dependency>
+      <groupId>${productcenter.facade.groupId}</groupId>
+      <artifactId>leadbank-productcenter-facade</artifactId>
+      <version>${productcenter.facade.version}</version>
+    </dependency>
+    <!-- Facade 接口依赖；缺了会在创建 fundBaseInfoFacade 时 ExceptionInInitializerError -->
+    <dependency>
+      <groupId>com.leadbank.common</groupId>
+      <artifactId>leadbank-biz-common</artifactId>
+      <version>${leadbank.common.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.leadbank.common</groupId>
+      <artifactId>leadbank-rpc-common</artifactId>
+      <version>${leadbank.common.version}</version>
+    </dependency>
+    <!-- hibernate-validator（由 facade 传递引入）的运行时依赖；显式声明防止增量 package 漏打进 fat jar -->
+    <dependency>
+      <groupId>org.jboss.logging</groupId>
+      <artifactId>jboss-logging</artifactId>
+      <version>3.4.3.Final</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml</groupId>
+      <artifactId>classmate</artifactId>
+      <version>1.5.1</version>
+    </dependency>
+    <!-- Graylog GELF TCP（对齐产品中心 logback.xml） -->
+    <dependency>
+      <groupId>biz.paluch.logging</groupId>
+      <artifactId>logstash-gelf</artifactId>
+      <version>${logstash.gelf.version}</version>
+    </dependency>
+    <!-- logback <if> 条件装配 Graylog -->
+    <dependency>
+      <groupId>org.codehaus.janino</groupId>
+      <artifactId>janino</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!-- AOP 审计需要真实参数名（args 里显示 fundCode 而非 arg0） -->
+          <parameters>true</parameters>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
